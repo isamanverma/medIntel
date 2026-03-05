@@ -29,6 +29,9 @@ async_engine: AsyncEngine = create_async_engine(
     settings.async_database_url,
     echo=os.getenv("SQL_ECHO", "false").lower() == "true",
     future=True,
+    pool_size=5,
+    max_overflow=10,
+    pool_pre_ping=True,
     # Disable asyncpg's prepared-statement caching so that connections
     # work correctly through pgbouncer / Supabase's connection pooler,
     # which operates in "transaction" pool mode.

@@ -19,6 +19,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.db.engine import init_db
 from app.api.auth import router as auth_router
+from app.api.profiles import router as profiles_router
+from app.api.appointments import router as appointments_router
+from app.api.mappings import router as mappings_router
+from app.api.treatments import router as treatments_router
+from app.api.reports import router as reports_router
+from app.api.adherence import router as adherence_router
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -76,13 +82,13 @@ app.add_middleware(
 # Auth (signup, login, me)
 app.include_router(auth_router, prefix="/api")
 
-# Future routers — uncomment as they are implemented:
-# from app.api.appointments import router as appointments_router
-# from app.api.patients import router as patients_router
-# from app.api.reports import router as reports_router
-# app.include_router(appointments_router, prefix="/api")
-# app.include_router(patients_router, prefix="/api")
-# app.include_router(reports_router, prefix="/api")
+# Domain APIs
+app.include_router(profiles_router, prefix="/api")
+app.include_router(appointments_router, prefix="/api")
+app.include_router(mappings_router, prefix="/api")
+app.include_router(treatments_router, prefix="/api")
+app.include_router(reports_router, prefix="/api")
+app.include_router(adherence_router, prefix="/api")
 
 
 # ──────────────────────────────────────────────────────────────────

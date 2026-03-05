@@ -13,18 +13,17 @@ Endpoints:
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.engine import get_session
-from app.models.user import UserCreate, UserPublic, TokenResponse
+from app.deps import get_current_user as get_current_user_dep
+from app.models.user import User, UserCreate, UserPublic, TokenResponse
 from app.services.auth_service import (
     create_user,
     verify_credentials,
-    get_current_user,
     EmailAlreadyExistsError,
     InvalidCredentialsError,
-    InvalidTokenError,
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -126,30 +125,6 @@ async def login(
 #  GET /auth/me
 # ──────────────────────────────────────────────────────────────────
 
-def _extract_bearer_token(request: Request) -> str:
-    """
-    Pull the Bearer token from the Authorization header or from
-    the `access_token` cookie (set by the Next.js BFF proxy).
-
-    Raises HTTPException 401 if neither source provides a token.
-    """
-    # 1. Try Authorization header first
-    auth_header: str | None = request.headers.get("Authorization")
-    if auth_header and auth_header.startswith("Bearer "):
-        return auth_header.removeprefix("Bearer ").strip()
-
-    # 2. Fall back to HttpOnly cookie
-    cookie_token: str | None = request.cookies.get("access_token")
-    if cookie_token:
-        return cookie_token
-
-    raise HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Missing authentication token",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-
-
 @router.get(
     "/me",
     response_model=UserPublic,
@@ -158,8 +133,7 @@ def _extract_bearer_token(request: Request) -> str:
     },
 )
 async def me(
-    request: Request,
-    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user_dep),
 ) -> UserPublic:
     """
     Return the authenticated user's public profile.
@@ -168,15 +142,5 @@ async def me(
       - `Authorization: Bearer <token>` header, OR
       - `access_token` HttpOnly cookie (set by the Next.js BFF).
     """
-    token = _extract_bearer_token(request)
-
-    try:
-        user = await get_current_user(session, token)
-    except (InvalidTokenError, InvalidCredentialsError) as exc:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=str(exc),
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
     return UserPublic.model_validate(user)
+

@@ -3,7 +3,7 @@
 > Comprehensive inventory of every issue found during code review.
 > Each issue links to the TODO phase where it will be resolved.
 >
-> Last updated: 2026-03-05 (after Phase 1 completion)
+> Last updated: 2026-03-06 (after Phase 2 completion)
 
 ---
 
@@ -22,12 +22,8 @@
 - **Fix**: Add `slowapi` or a custom rate limiter middleware (e.g., 5 login attempts/minute per IP)
 - **TODO Phase**: Phase 4
 
-### ISSUE-004: Signup Race Condition (Duplicate Email)
-- **File**: `backend/app/services/auth_service.py` → `create_user()`
-- **Problem**: Checks `get_user_by_email()` then does `session.add()` + `session.commit()` — not atomic. Two simultaneous signups with the same email can both pass the check, causing a database constraint error or duplicate accounts.
-- **Impact**: Unhandled 500 error, potential duplicate user
-- **Fix**: Wrap in try/except for `IntegrityError` and return `EmailAlreadyExistsError`
-- **TODO Phase**: Phase 2.1
+### ~~ISSUE-004: Signup Race Condition (Duplicate Email)~~ ✅ RESOLVED
+- **Fixed in**: Phase 2.1 — Added `IntegrityError` catch in `create_user()`. The `session.commit()` is now wrapped in try/except to handle concurrent duplicate email registrations gracefully.
 
 ---
 
@@ -123,10 +119,8 @@
 ### ~~ISSUE-024: No Error Boundary or 404 Page~~ ✅ RESOLVED
 - **Fixed in**: Phase 1 — Added `app/error.tsx`, `app/not-found.tsx`, `app/loading.tsx`.
 
-### ISSUE-025: No Tests at All
-- **Problem**: Zero test files across the entire codebase.
-- **Fix**: Add pytest + httpx for backend, ensure `npm run build` passes
-- **TODO Phase**: Phase 4
+### ~~ISSUE-025: No Tests at All~~ ✅ RESOLVED
+- **Fixed in**: Phase 2 — Added 30 tests across 3 test files (auth, profiles, appointments/mappings). Uses pytest + httpx + pytest-asyncio with NullPool for Windows compatibility.
 
 ### ISSUE-026: Next.js Middleware Deprecation ✅ RESOLVED
 - **Fixed in**: Post Phase 1 — Renamed `middleware.ts` → `proxy.ts`, function `middleware()` → `proxy()`.
@@ -140,8 +134,8 @@
 
 | Severity | Total | Resolved | Open |
 |----------|-------|----------|------|
-| 🔴 Critical | 4 | 2 | 2 (rate limiting, race condition) |
+| 🔴 Critical | 4 | 3 | 1 (rate limiting) |
 | 🟠 High | 5 | 5 | 0 |
 | 🟡 Medium | 7 | 5 | 2 (onupdate bug, CSRF) |
-| 🔵 Low | 11 | 5 | 6 (hardcoded data, dead links, no tests) |
-| **Total** | **27** | **17** | **10** |
+| 🔵 Low | 11 | 6 | 5 (hardcoded data, dead links) |
+| **Total** | **27** | **19** | **8** |

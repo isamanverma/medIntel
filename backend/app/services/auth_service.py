@@ -20,6 +20,7 @@ from typing import Optional
 import bcrypt
 from jose import JWTError, jwt
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -180,7 +181,13 @@ async def create_user(
     )
 
     session.add(user)
-    await session.commit()
+    try:
+        await session.commit()
+    except IntegrityError:
+        await session.rollback()
+        raise EmailAlreadyExistsError(
+            f"A user with email '{data.email}' already exists"
+        )
     await session.refresh(user)
 
     token = create_access_token(
