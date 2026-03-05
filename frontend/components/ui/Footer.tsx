@@ -62,19 +62,22 @@ export default function Footer() {
             </h3>
             <ul className="space-y-2">
               <li>
-                <span className="text-sm text-muted-foreground cursor-default">
-                  Documentation
-                </span>
+                <Link
+                  href="https://github.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-muted-foreground hover:text-primary transition-colors"
+                >
+                  GitHub Repository
+                </Link>
               </li>
               <li>
-                <span className="text-sm text-muted-foreground cursor-default">
-                  API Reference
-                </span>
-              </li>
-              <li>
-                <span className="text-sm text-muted-foreground cursor-default">
-                  Privacy Policy
-                </span>
+                <Link
+                  href="/login?role=doctor"
+                  className="text-sm text-muted-foreground hover:text-primary transition-colors"
+                >
+                  For Healthcare Providers
+                </Link>
               </li>
             </ul>
           </div>
@@ -94,16 +97,6 @@ export default function Footer() {
                   Admin Login
                 </Link>
               </li>
-              <li>
-                <span className="text-sm text-muted-foreground cursor-default">
-                  System Status
-                </span>
-              </li>
-              <li>
-                <span className="text-sm text-muted-foreground cursor-default">
-                  Support
-                </span>
-              </li>
             </ul>
           </div>
         </div>
@@ -114,12 +107,6 @@ export default function Footer() {
             &copy; {new Date().getFullYear()} MedIntel. All rights reserved.
           </p>
           <div className="flex items-center gap-4">
-            <span className="text-xs text-muted-foreground cursor-default">
-              Terms
-            </span>
-            <span className="text-xs text-muted-foreground cursor-default">
-              Privacy
-            </span>
             <Link
               href="/login?role=admin"
               className="text-xs text-muted-foreground hover:text-primary transition-colors"

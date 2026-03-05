@@ -1,25 +1,61 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/components/providers/SessionProvider";
 import {
   Activity,
   HeartPulse,
   FileText,
   Calendar,
-  Bell,
   TrendingUp,
   LogOut,
   Loader2,
-  ClipboardList,
-  MessageSquare,
+  Users,
+  Inbox,
 } from "lucide-react";
 import Link from "next/link";
+import {
+  getUpcomingAppointments,
+  getAppointmentHistory,
+  getMyDoctors,
+  getMyPatientProfile,
+} from "@/lib/api-client";
+import type { Appointment, MappingDoctor, PatientProfile } from "@/lib/types";
 
 export default function PatientDashboard() {
   const { session, status, logout } = useAuth();
   const router = useRouter();
+
+  // Live data state
+  const [upcoming, setUpcoming] = useState<Appointment[]>([]);
+  const [history, setHistory] = useState<Appointment[]>([]);
+  const [doctors, setDoctors] = useState<MappingDoctor[]>([]);
+  const [profile, setProfile] = useState<PatientProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const fetchData = useCallback(async () => {
+    try {
+      const [upcomingRes, historyRes, doctorsRes] = await Promise.allSettled([
+        getUpcomingAppointments(),
+        getAppointmentHistory(),
+        getMyDoctors(),
+      ]);
+      if (upcomingRes.status === "fulfilled") setUpcoming(upcomingRes.value);
+      if (historyRes.status === "fulfilled") setHistory(historyRes.value);
+      if (doctorsRes.status === "fulfilled") setDoctors(doctorsRes.value);
+
+      // Profile may not exist yet
+      try {
+        const p = await getMyPatientProfile();
+        setProfile(p);
+      } catch {
+        // Profile not created yet — that's fine
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -35,7 +71,13 @@ export default function PatientDashboard() {
     }
   }, [status, session, router]);
 
-  if (status === "loading") {
+  useEffect(() => {
+    if (status === "authenticated" && session?.user?.role === "PATIENT") {
+      fetchData();
+    }
+  }, [status, session, fetchData]);
+
+  if (status === "loading" || loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-3">
@@ -55,55 +97,41 @@ export default function PatientDashboard() {
   const quickStats = [
     {
       label: "Upcoming Appointments",
-      value: "2",
+      value: String(upcoming.length),
       icon: Calendar,
       color: "text-primary",
       bg: "bg-primary/10",
     },
     {
-      label: "Health Score",
-      value: "87/100",
-      icon: TrendingUp,
+      label: "My Doctors",
+      value: String(doctors.length),
+      icon: Users,
       color: "text-secondary",
       bg: "bg-secondary/10",
     },
     {
-      label: "Reports Ready",
-      value: "3",
+      label: "Past Visits",
+      value: String(history.length),
       icon: FileText,
       color: "text-accent",
       bg: "bg-accent/10",
     },
     {
-      label: "Notifications",
-      value: "5",
-      icon: Bell,
-      color: "text-amber-500",
-      bg: "bg-amber-500/10",
+      label: "Adherence",
+      value: profile ? "Active" : "Set Up Profile",
+      icon: TrendingUp,
+      color: "text-secondary",
+      bg: "bg-secondary/10",
     },
   ];
 
-  const recentActivity = [
-    {
-      title: "Lab Results Available",
-      description: "Complete Blood Count results are ready for review.",
-      time: "2 hours ago",
-      icon: ClipboardList,
-    },
-    {
-      title: "Appointment Confirmed",
-      description: "Dr. Sarah Chen — General Checkup on Dec 15, 2024.",
-      time: "Yesterday",
-      icon: Calendar,
-    },
-    {
-      title: "AI Health Insight",
-      description:
-        "Based on your recent data, your vitamin D levels may need attention.",
-      time: "2 days ago",
-      icon: MessageSquare,
-    },
-  ];
+  const recentAppointments = [...upcoming, ...history]
+    .sort(
+      (a, b) =>
+        new Date(b.scheduled_time).getTime() -
+        new Date(a.scheduled_time).getTime()
+    )
+    .slice(0, 5);
 
   return (
     <div className="min-h-screen bg-muted/30">
@@ -123,17 +151,9 @@ export default function PatientDashboard() {
           </Link>
           <div className="flex items-center gap-3">
             <div className="hidden items-center gap-2 sm:flex">
-              {session.user.image ? (
-                <img
-                  src={session.user.image}
-                  alt=""
-                  className="h-8 w-8 rounded-full"
-                />
-              ) : (
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary font-semibold text-sm">
-                  {session.user.name?.charAt(0)?.toUpperCase() || "P"}
-                </div>
-              )}
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary font-semibold text-sm">
+                {session.user.name?.charAt(0)?.toUpperCase() || "P"}
+              </div>
               <div className="text-sm">
                 <p className="font-medium text-foreground">
                   {session.user.name}
@@ -162,7 +182,7 @@ export default function PatientDashboard() {
         {/* Welcome section */}
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-foreground sm:text-3xl">
-            Welcome back, {session.user.name?.split(" ")[0] || "Patient"} 👋
+            Welcome back, {session.user.name?.split(" ")[0] || "Patient"}
           </h1>
           <p className="mt-1 text-muted-foreground">
             Here&apos;s an overview of your health and upcoming activities.
@@ -199,76 +219,113 @@ export default function PatientDashboard() {
         </div>
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-          {/* Recent activity */}
+          {/* Recent appointments */}
           <div className="lg:col-span-2 rounded-xl border border-border bg-card p-6 shadow-sm">
             <h2 className="mb-4 text-lg font-semibold text-card-foreground">
-              Recent Activity
+              Recent Appointments
             </h2>
-            <div className="space-y-4">
-              {recentActivity.map((item, idx) => {
-                const Icon = item.icon;
-                return (
+            {recentAppointments.length === 0 ? (
+              <div className="flex flex-col items-center py-8 text-center">
+                <Inbox className="h-10 w-10 text-muted-foreground/40" />
+                <p className="mt-3 text-sm font-medium text-muted-foreground">
+                  No appointments yet
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground/70">
+                  Your upcoming and past appointments will appear here.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {recentAppointments.map((appt) => (
                   <div
-                    key={idx}
-                    className="flex gap-3 rounded-lg border border-border bg-muted/30 p-4 transition-colors hover:bg-muted/60"
+                    key={appt.id}
+                    className="flex items-center justify-between rounded-lg border border-border bg-muted/30 p-4 transition-colors hover:bg-muted/60"
                   >
-                    <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-primary/10">
-                      <Icon className="h-5 w-5 text-primary" />
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                        <Calendar className="h-5 w-5 text-primary" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-card-foreground">
+                          Appointment
+                        </p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          {new Date(appt.scheduled_time).toLocaleDateString(
+                            "en-US",
+                            {
+                              weekday: "short",
+                              month: "short",
+                              day: "numeric",
+                              hour: "numeric",
+                              minute: "2-digit",
+                            }
+                          )}
+                        </p>
+                      </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-card-foreground">
-                        {item.title}
-                      </p>
-                      <p className="mt-0.5 text-xs text-muted-foreground leading-relaxed">
-                        {item.description}
-                      </p>
-                      <p className="mt-1 text-xs text-muted-foreground/70">
-                        {item.time}
-                      </p>
-                    </div>
+                    <span
+                      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${appt.status === "COMPLETED"
+                          ? "bg-secondary/10 text-secondary"
+                          : appt.status === "CANCELLED"
+                            ? "bg-destructive/10 text-destructive"
+                            : "bg-primary/10 text-primary"
+                        }`}
+                    >
+                      {appt.status}
+                    </span>
                   </div>
-                );
-              })}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
 
-          {/* Health overview card */}
+          {/* Profile overview card */}
           <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
             <h2 className="mb-4 text-lg font-semibold text-card-foreground">
-              Health Overview
+              My Profile
             </h2>
-            <div className="flex flex-col items-center py-4">
-              <div className="relative flex h-32 w-32 items-center justify-center rounded-full border-4 border-secondary/30">
-                <div className="absolute inset-1 rounded-full border-4 border-secondary border-t-transparent animate-pulse" />
-                <div className="text-center">
-                  <HeartPulse className="mx-auto h-6 w-6 text-secondary" />
-                  <p className="mt-1 text-2xl font-bold text-card-foreground">
-                    87
+            {profile ? (
+              <div className="space-y-4">
+                <div className="flex flex-col items-center py-4">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+                    <HeartPulse className="h-8 w-8 text-primary" />
+                  </div>
+                  <p className="mt-3 text-lg font-semibold text-card-foreground">
+                    {profile.first_name} {profile.last_name}
                   </p>
-                  <p className="text-xs text-muted-foreground">Health Score</p>
+                </div>
+                <div className="space-y-3 border-t border-border pt-4">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Blood Group</span>
+                    <span className="font-medium text-card-foreground">
+                      {profile.blood_group || "Not set"}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Date of Birth</span>
+                    <span className="font-medium text-card-foreground">
+                      {new Date(profile.date_of_birth).toLocaleDateString()}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Emergency Contact</span>
+                    <span className="font-medium text-card-foreground">
+                      {profile.emergency_contact || "Not set"}
+                    </span>
+                  </div>
                 </div>
               </div>
-              <p className="mt-4 text-center text-sm text-muted-foreground">
-                Your health score is{" "}
-                <span className="font-medium text-secondary">Good</span>. Keep
-                up your regular checkups!
-              </p>
-            </div>
-
-            <div className="mt-4 space-y-3 border-t border-border pt-4">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Blood Pressure</span>
-                <span className="font-medium text-card-foreground">120/80</span>
+            ) : (
+              <div className="flex flex-col items-center py-8 text-center">
+                <HeartPulse className="h-10 w-10 text-muted-foreground/40" />
+                <p className="mt-3 text-sm font-medium text-muted-foreground">
+                  Profile not set up
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground/70">
+                  Complete your profile to get personalized health insights.
+                </p>
               </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Heart Rate</span>
-                <span className="font-medium text-card-foreground">72 bpm</span>
-              </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">BMI</span>
-                <span className="font-medium text-card-foreground">23.4</span>
-              </div>
-            </div>
+            )}
           </div>
         </div>
       </main>

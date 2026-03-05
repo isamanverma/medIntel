@@ -1,23 +1,39 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/components/providers/SessionProvider";
 import {
   Activity,
   LogOut,
   Shield,
   Users,
-  Server,
-  BarChart3,
+  Calendar,
+  FileText,
   Settings,
+  BarChart3,
   Loader2,
 } from "lucide-react";
 import Link from "next/link";
+import { getAdminStats } from "@/lib/api-client";
+import type { AdminStats } from "@/lib/types";
 
 export default function AdminDashboard() {
   const { session, status, logout } = useAuth();
   const router = useRouter();
+  const [stats, setStats] = useState<AdminStats | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const fetchData = useCallback(async () => {
+    try {
+      const data = await getAdminStats();
+      setStats(data);
+    } catch {
+      // Admin stats fetch failed — will show zeroes
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -33,7 +49,13 @@ export default function AdminDashboard() {
     }
   }, [status, session, router]);
 
-  if (status === "loading") {
+  useEffect(() => {
+    if (status === "authenticated" && session?.user?.role === "ADMIN") {
+      fetchData();
+    }
+  }, [status, session, fetchData]);
+
+  if (status === "loading" || loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-3">
@@ -50,34 +72,52 @@ export default function AdminDashboard() {
 
   const user = session.user;
 
-  const stats = [
+  const statCards = [
     {
       label: "Total Users",
-      value: "1,284",
+      value: stats ? stats.total_users.toLocaleString() : "0",
       icon: Users,
       color: "text-primary",
       bg: "bg-primary/10",
     },
     {
-      label: "Active Sessions",
-      value: "342",
-      icon: Server,
+      label: "Patients",
+      value: stats ? stats.total_patients.toLocaleString() : "0",
+      icon: Users,
       color: "text-secondary",
       bg: "bg-secondary/10",
     },
     {
-      label: "System Health",
-      value: "99.9%",
-      icon: BarChart3,
+      label: "Doctors",
+      value: stats ? stats.total_doctors.toLocaleString() : "0",
+      icon: Users,
       color: "text-accent",
       bg: "bg-accent/10",
     },
     {
-      label: "Pending Reviews",
-      value: "18",
-      icon: Settings,
+      label: "Appointments",
+      value: stats ? stats.total_appointments.toLocaleString() : "0",
+      icon: Calendar,
       color: "text-orange-500",
       bg: "bg-orange-500/10",
+    },
+  ];
+
+  const secondaryStats = [
+    {
+      label: "Medical Reports",
+      value: stats ? stats.total_reports.toLocaleString() : "0",
+      icon: FileText,
+    },
+    {
+      label: "Treatment Plans",
+      value: stats ? stats.total_treatment_plans.toLocaleString() : "0",
+      icon: BarChart3,
+    },
+    {
+      label: "Admin Users",
+      value: stats ? stats.total_admins.toLocaleString() : "0",
+      icon: Shield,
     },
   ];
 
@@ -126,8 +166,8 @@ export default function AdminDashboard() {
                 Welcome back, {user.name || "Admin"}
               </h1>
               <p className="mt-1 text-muted-foreground">
-                System administration dashboard &mdash; manage users, monitor
-                platform health, and review activity.
+                System administration dashboard &mdash; live platform
+                statistics.
               </p>
               <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
                 <span className="inline-flex items-center gap-1 text-muted-foreground">
@@ -141,9 +181,9 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* Stats Grid */}
+        {/* Primary Stats Grid */}
         <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {stats.map((stat) => {
+          {statCards.map((stat) => {
             const Icon = stat.icon;
             return (
               <div
@@ -168,49 +208,82 @@ export default function AdminDashboard() {
           })}
         </div>
 
-        {/* Quick Actions */}
-        <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
-          <h2 className="mb-4 text-lg font-semibold text-card-foreground">
-            Quick Actions
-          </h2>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {[
-              {
-                label: "Manage Users",
-                desc: "View, edit, or remove user accounts",
-                icon: Users,
-              },
-              {
-                label: "System Settings",
-                desc: "Configure platform settings",
-                icon: Settings,
-              },
-              {
-                label: "View Analytics",
-                desc: "Platform usage and performance reports",
-                icon: BarChart3,
-              },
-            ].map((action) => {
-              const Icon = action.icon;
-              return (
-                <button
-                  key={action.label}
-                  className="flex items-start gap-3 rounded-lg border border-border p-4 text-left hover:bg-muted/50 transition-colors"
-                >
-                  <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-accent/10">
-                    <Icon className="h-5 w-5 text-accent" />
+        {/* Secondary Stats + Quick Actions */}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          {/* Additional Stats */}
+          <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
+            <h2 className="mb-4 text-lg font-semibold text-card-foreground">
+              Platform Overview
+            </h2>
+            <div className="space-y-4">
+              {secondaryStats.map((stat) => {
+                const Icon = stat.icon;
+                return (
+                  <div
+                    key={stat.label}
+                    className="flex items-center justify-between rounded-lg border border-border p-4"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
+                        <Icon className="h-5 w-5 text-muted-foreground" />
+                      </div>
+                      <span className="text-sm font-medium text-card-foreground">
+                        {stat.label}
+                      </span>
+                    </div>
+                    <span className="text-lg font-bold text-card-foreground">
+                      {stat.value}
+                    </span>
                   </div>
-                  <div>
-                    <p className="text-sm font-semibold text-card-foreground">
-                      {action.label}
-                    </p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      {action.desc}
-                    </p>
-                  </div>
-                </button>
-              );
-            })}
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Quick Actions */}
+          <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
+            <h2 className="mb-4 text-lg font-semibold text-card-foreground">
+              Quick Actions
+            </h2>
+            <div className="grid grid-cols-1 gap-3">
+              {[
+                {
+                  label: "Manage Users",
+                  desc: "View, edit, or remove user accounts",
+                  icon: Users,
+                },
+                {
+                  label: "System Settings",
+                  desc: "Configure platform settings",
+                  icon: Settings,
+                },
+                {
+                  label: "View Analytics",
+                  desc: "Platform usage and performance reports",
+                  icon: BarChart3,
+                },
+              ].map((action) => {
+                const Icon = action.icon;
+                return (
+                  <button
+                    key={action.label}
+                    className="flex items-start gap-3 rounded-lg border border-border p-4 text-left hover:bg-muted/50 transition-colors"
+                  >
+                    <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-accent/10">
+                      <Icon className="h-5 w-5 text-accent" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-card-foreground">
+                        {action.label}
+                      </p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        {action.desc}
+                      </p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       </main>

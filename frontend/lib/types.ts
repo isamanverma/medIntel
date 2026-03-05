@@ -65,3 +65,77 @@ export function roleToDashboard(role: string): string {
             return "/patient/dashboard";
     }
 }
+
+// ── Domain Models ────────────────────────────────────────────────
+
+export interface PatientProfile {
+    id: string;
+    user_id: string;
+    first_name: string;
+    last_name: string;
+    date_of_birth: string;
+    blood_group: string | null;
+    emergency_contact: string | null;
+    created_at: string;
+}
+
+export interface DoctorProfile {
+    id: string;
+    user_id: string;
+    first_name: string;
+    last_name: string;
+    specialization: string;
+    license_number: string;
+    created_at: string;
+}
+
+export interface Appointment {
+    id: string;
+    patient_id: string;
+    doctor_id: string;
+    scheduled_time: string;
+    status: "PENDING" | "CONFIRMED" | "CANCELLED" | "COMPLETED";
+    notes: string | null;
+    created_at: string;
+}
+
+export interface AdminStats {
+    total_users: number;
+    total_patients: number;
+    total_doctors: number;
+    total_admins: number;
+    total_appointments: number;
+    total_reports: number;
+    total_treatment_plans: number;
+}
+
+export interface MappingDoctor {
+    id: string;
+    first_name: string;
+    last_name: string;
+    specialization: string;
+}
+
+export interface MappingPatient {
+    id: string;
+    first_name: string;
+    last_name: string;
+    date_of_birth: string;
+}
+
+export interface MedicalReport {
+    id: string;
+    patient_id: string;
+    title: string;
+    report_type: string;
+    file_url: string | null;
+    created_at: string;
+}
+
+export interface AdherenceStats {
+    total: number;
+    taken: number;
+    missed: number;
+    late: number;
+    adherence_percentage: number;
+}

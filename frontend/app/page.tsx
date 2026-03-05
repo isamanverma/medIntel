@@ -50,9 +50,9 @@ const features = [
 ];
 
 const stats = [
-  { value: "99.9%", label: "Uptime SLA" },
-  { value: "50k+", label: "Records Processed" },
-  { value: "<2s", label: "Avg Response Time" },
+  { value: "3", label: "User Roles" },
+  { value: "25+", label: "API Endpoints" },
+  { value: "RBAC", label: "Access Control" },
   { value: "256-bit", label: "Encryption" },
 ];
 

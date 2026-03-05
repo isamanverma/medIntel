@@ -159,3 +159,67 @@ export async function getMe(): Promise<UserPublic> {
     method: "GET",
   });
 }
+
+
+// ---------------------------------------------------------------------------
+//  Domain API — called directly from the browser (client-side)
+// ---------------------------------------------------------------------------
+
+import type {
+  PatientProfile,
+  DoctorProfile,
+  Appointment,
+  AdminStats,
+  MappingDoctor,
+  MappingPatient,
+  MedicalReport,
+  AdherenceStats,
+} from "@/lib/types";
+
+// — Profiles ——————————————————————————————————————
+
+export async function getMyPatientProfile(): Promise<PatientProfile> {
+  return request<PatientProfile>("/api/profiles/patient/me");
+}
+
+export async function getMyDoctorProfile(): Promise<DoctorProfile> {
+  return request<DoctorProfile>("/api/profiles/doctor/me");
+}
+
+// — Appointments ——————————————————————————————————
+
+export async function getUpcomingAppointments(): Promise<Appointment[]> {
+  return request<Appointment[]>("/api/appointments/upcoming");
+}
+
+export async function getAppointmentHistory(): Promise<Appointment[]> {
+  return request<Appointment[]>("/api/appointments/history");
+}
+
+// — Mappings ——————————————————————————————————————
+
+export async function getMyDoctors(): Promise<MappingDoctor[]> {
+  return request<MappingDoctor[]>("/api/mappings/my-doctors");
+}
+
+export async function getMyPatients(): Promise<MappingPatient[]> {
+  return request<MappingPatient[]>("/api/mappings/my-patients");
+}
+
+// — Reports ——————————————————————————————————————
+
+export async function getMyReports(patientId: string): Promise<MedicalReport[]> {
+  return request<MedicalReport[]>(`/api/reports/patient/${patientId}`);
+}
+
+// — Adherence —————————————————————————————————————
+
+export async function getAdherenceStats(patientId: string): Promise<AdherenceStats> {
+  return request<AdherenceStats>(`/api/adherence/stats/${patientId}`);
+}
+
+// — Admin —————————————————————————————————————————
+
+export async function getAdminStats(): Promise<AdminStats> {
+  return request<AdminStats>("/api/admin/stats");
+}

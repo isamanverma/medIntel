@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/components/providers/SessionProvider";
 import {
   Activity,
@@ -10,14 +10,37 @@ import {
   Users,
   FileText,
   Calendar,
-  TrendingUp,
   Clock,
+  Loader2,
+  Inbox,
 } from "lucide-react";
 import Link from "next/link";
+import {
+  getUpcomingAppointments,
+  getMyPatients,
+} from "@/lib/api-client";
+import type { Appointment, MappingPatient } from "@/lib/types";
 
 export default function DoctorDashboard() {
   const { session, status, logout } = useAuth();
   const router = useRouter();
+
+  const [upcoming, setUpcoming] = useState<Appointment[]>([]);
+  const [patients, setPatients] = useState<MappingPatient[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchData = useCallback(async () => {
+    try {
+      const [upcomingRes, patientsRes] = await Promise.allSettled([
+        getUpcomingAppointments(),
+        getMyPatients(),
+      ]);
+      if (upcomingRes.status === "fulfilled") setUpcoming(upcomingRes.value);
+      if (patientsRes.status === "fulfilled") setPatients(patientsRes.value);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -31,11 +54,17 @@ export default function DoctorDashboard() {
     }
   }, [status, session, router]);
 
-  if (status === "loading") {
+  useEffect(() => {
+    if (status === "authenticated" && session?.user?.role === "DOCTOR") {
+      fetchData();
+    }
+  }, [status, session, fetchData]);
+
+  if (status === "loading" || loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-3">
-          <Activity className="h-8 w-8 animate-spin text-secondary" />
+          <Loader2 className="h-8 w-8 animate-spin text-secondary" />
           <p className="text-sm text-muted-foreground">Loading dashboard...</p>
         </div>
       </div>
@@ -48,71 +77,53 @@ export default function DoctorDashboard() {
 
   const stats = [
     {
-      label: "Total Patients",
-      value: "248",
-      change: "+12 this month",
+      label: "My Patients",
+      value: String(patients.length),
       icon: Users,
       color: "text-primary",
       bg: "bg-primary/10",
     },
     {
-      label: "Appointments Today",
-      value: "8",
-      change: "3 remaining",
+      label: "Upcoming Appointments",
+      value: String(upcoming.length),
       icon: Calendar,
       color: "text-secondary",
       bg: "bg-secondary/10",
     },
     {
-      label: "Reports Pending",
-      value: "5",
-      change: "2 urgent",
-      icon: FileText,
+      label: "Today's Appointments",
+      value: String(
+        upcoming.filter((a) => {
+          const d = new Date(a.scheduled_time);
+          const now = new Date();
+          return (
+            d.getDate() === now.getDate() &&
+            d.getMonth() === now.getMonth() &&
+            d.getFullYear() === now.getFullYear()
+          );
+        }).length
+      ),
+      icon: Clock,
       color: "text-accent",
       bg: "bg-accent/10",
     },
     {
-      label: "Patient Recovery",
-      value: "94%",
-      change: "+2.3% vs last month",
-      icon: TrendingUp,
+      label: "Confirmed",
+      value: String(
+        upcoming.filter((a) => a.status === "CONFIRMED").length
+      ),
+      icon: FileText,
       color: "text-secondary",
       bg: "bg-secondary/10",
     },
   ];
 
-  const recentPatients = [
-    {
-      name: "Sarah Johnson",
-      condition: "Post-Op Follow-up",
-      time: "9:00 AM",
-      status: "Completed",
-    },
-    {
-      name: "Michael Chen",
-      condition: "Diabetes Review",
-      time: "10:30 AM",
-      status: "Completed",
-    },
-    {
-      name: "Emily Rodriguez",
-      condition: "Cardiac Assessment",
-      time: "1:00 PM",
-      status: "Upcoming",
-    },
-    {
-      name: "David Kim",
-      condition: "Annual Physical",
-      time: "2:30 PM",
-      status: "Upcoming",
-    },
-    {
-      name: "Lisa Thompson",
-      condition: "Lab Results Review",
-      time: "4:00 PM",
-      status: "Upcoming",
-    },
-  ];
+  // Sort upcoming by time
+  const sortedUpcoming = [...upcoming].sort(
+    (a, b) =>
+      new Date(a.scheduled_time).getTime() -
+      new Date(b.scheduled_time).getTime()
+  );
 
   return (
     <div className="min-h-screen bg-muted/30">
@@ -142,17 +153,9 @@ export default function DoctorDashboard() {
                 {session.user.email}
               </p>
             </div>
-            {session.user.image ? (
-              <img
-                src={session.user.image}
-                alt=""
-                className="h-9 w-9 rounded-full border-2 border-secondary/20"
-              />
-            ) : (
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary/10 text-secondary font-semibold text-sm">
-                {session.user.name?.charAt(0)?.toUpperCase() || "D"}
-              </div>
-            )}
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary/10 text-secondary font-semibold text-sm">
+              {session.user.name?.charAt(0)?.toUpperCase() || "D"}
+            </div>
             <button
               onClick={async () => {
                 await logout();
@@ -207,22 +210,19 @@ export default function DoctorDashboard() {
                 <p className="mt-2 text-2xl font-bold text-card-foreground">
                   {stat.value}
                 </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {stat.change}
-                </p>
               </div>
             );
           })}
         </div>
 
-        {/* Today's Schedule */}
+        {/* Schedule */}
         <div className="rounded-xl border border-border bg-card shadow-sm">
           <div className="border-b border-border px-6 py-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Clock className="h-5 w-5 text-secondary" />
                 <h2 className="text-lg font-semibold text-card-foreground">
-                  Today&apos;s Schedule
+                  Upcoming Schedule
                 </h2>
               </div>
               <span className="text-sm text-muted-foreground">
@@ -234,58 +234,59 @@ export default function DoctorDashboard() {
               </span>
             </div>
           </div>
-          <div className="divide-y divide-border">
-            {recentPatients.map((patient, index) => (
-              <div
-                key={index}
-                className="flex items-center justify-between px-6 py-4 hover:bg-muted/50 transition-colors"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary/10 text-secondary font-semibold text-sm">
-                    {patient.name
-                      .split(" ")
-                      .map((n) => n[0])
-                      .join("")}
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-card-foreground">
-                      {patient.name}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {patient.condition}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-sm text-muted-foreground">
-                    {patient.time}
-                  </span>
-                  <span
-                    className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                      patient.status === "Completed"
-                        ? "bg-secondary/10 text-secondary"
-                        : "bg-primary/10 text-primary"
-                    }`}
-                  >
-                    {patient.status}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
 
-        {/* Placeholder info */}
-        <div className="mt-8 rounded-xl border border-dashed border-border bg-muted/30 p-8 text-center">
-          <Stethoscope className="mx-auto h-10 w-10 text-muted-foreground/50" />
-          <h3 className="mt-3 text-lg font-semibold text-foreground">
-            Doctor Dashboard
-          </h3>
-          <p className="mt-1 text-sm text-muted-foreground max-w-md mx-auto">
-            This is a placeholder dashboard. Clinical features like patient
-            management, AI diagnostics, and report generation will be built in
-            upcoming stages.
-          </p>
+          {sortedUpcoming.length === 0 ? (
+            <div className="flex flex-col items-center py-12 text-center">
+              <Inbox className="h-10 w-10 text-muted-foreground/40" />
+              <p className="mt-3 text-sm font-medium text-muted-foreground">
+                No upcoming appointments
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground/70">
+                Your scheduled appointments will appear here.
+              </p>
+            </div>
+          ) : (
+            <div className="divide-y divide-border">
+              {sortedUpcoming.map((appt) => (
+                <div
+                  key={appt.id}
+                  className="flex items-center justify-between px-6 py-4 hover:bg-muted/50 transition-colors"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary/10 text-secondary font-semibold text-sm">
+                      <Calendar className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-card-foreground">
+                        Patient Appointment
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {appt.notes || "General consultation"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm text-muted-foreground">
+                      {new Date(appt.scheduled_time).toLocaleTimeString(
+                        "en-US",
+                        { hour: "numeric", minute: "2-digit" }
+                      )}
+                    </span>
+                    <span
+                      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${appt.status === "COMPLETED"
+                          ? "bg-secondary/10 text-secondary"
+                          : appt.status === "CONFIRMED"
+                            ? "bg-primary/10 text-primary"
+                            : "bg-amber-500/10 text-amber-600"
+                        }`}
+                    >
+                      {appt.status}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </main>
     </div>
