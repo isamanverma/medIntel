@@ -34,6 +34,24 @@ class PatientProfileCreate(BaseModel):
     date_of_birth: date
     blood_group: str = PydanticField(..., max_length=10)
     emergency_contact: str = PydanticField(..., max_length=50)
+    # ── Optional extended fields ──
+    gender: Optional[str] = PydanticField(None, max_length=20)
+    phone: Optional[str] = PydanticField(None, max_length=20)
+    preferred_language: Optional[str] = PydanticField(None, max_length=50)
+    allergies: Optional[list[str]] = None
+    chronic_conditions: Optional[list[str]] = None
+    past_surgeries: Optional[str] = PydanticField(None, max_length=500)
+    height_cm: Optional[float] = None
+    weight_kg: Optional[float] = None
+    blood_pressure: Optional[str] = PydanticField(None, max_length=20)
+    insurance_provider: Optional[str] = PydanticField(None, max_length=200)
+    insurance_policy_number: Optional[str] = PydanticField(None, max_length=100)
+    insurance_group_number: Optional[str] = PydanticField(None, max_length=100)
+    address_street: Optional[str] = PydanticField(None, max_length=255)
+    address_city: Optional[str] = PydanticField(None, max_length=100)
+    address_state: Optional[str] = PydanticField(None, max_length=100)
+    address_zip: Optional[str] = PydanticField(None, max_length=20)
+    address_country: Optional[str] = PydanticField(None, max_length=100)
 
 
 class PatientProfileUpdate(BaseModel):
@@ -42,6 +60,23 @@ class PatientProfileUpdate(BaseModel):
     date_of_birth: Optional[date] = None
     blood_group: Optional[str] = PydanticField(None, max_length=10)
     emergency_contact: Optional[str] = PydanticField(None, max_length=50)
+    gender: Optional[str] = PydanticField(None, max_length=20)
+    phone: Optional[str] = PydanticField(None, max_length=20)
+    preferred_language: Optional[str] = PydanticField(None, max_length=50)
+    allergies: Optional[list[str]] = None
+    chronic_conditions: Optional[list[str]] = None
+    past_surgeries: Optional[str] = PydanticField(None, max_length=500)
+    height_cm: Optional[float] = None
+    weight_kg: Optional[float] = None
+    blood_pressure: Optional[str] = PydanticField(None, max_length=20)
+    insurance_provider: Optional[str] = PydanticField(None, max_length=200)
+    insurance_policy_number: Optional[str] = PydanticField(None, max_length=100)
+    insurance_group_number: Optional[str] = PydanticField(None, max_length=100)
+    address_street: Optional[str] = PydanticField(None, max_length=255)
+    address_city: Optional[str] = PydanticField(None, max_length=100)
+    address_state: Optional[str] = PydanticField(None, max_length=100)
+    address_zip: Optional[str] = PydanticField(None, max_length=20)
+    address_country: Optional[str] = PydanticField(None, max_length=100)
 
 
 class PatientProfileResponse(BaseModel):
@@ -52,6 +87,23 @@ class PatientProfileResponse(BaseModel):
     date_of_birth: date
     blood_group: str
     emergency_contact: str
+    gender: Optional[str] = None
+    phone: Optional[str] = None
+    preferred_language: Optional[str] = None
+    allergies: Optional[list[str]] = None
+    chronic_conditions: Optional[list[str]] = None
+    past_surgeries: Optional[str] = None
+    height_cm: Optional[float] = None
+    weight_kg: Optional[float] = None
+    blood_pressure: Optional[str] = None
+    insurance_provider: Optional[str] = None
+    insurance_policy_number: Optional[str] = None
+    insurance_group_number: Optional[str] = None
+    address_street: Optional[str] = None
+    address_city: Optional[str] = None
+    address_state: Optional[str] = None
+    address_zip: Optional[str] = None
+    address_country: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
@@ -108,11 +160,7 @@ async def create_patient_profile(
 
     profile = PatientProfile(
         user_id=user.id,
-        first_name=body.first_name,
-        last_name=body.last_name,
-        date_of_birth=body.date_of_birth,
-        blood_group=body.blood_group,
-        emergency_contact=body.emergency_contact,
+        **body.model_dump(),
     )
     session.add(profile)
     await session.commit()

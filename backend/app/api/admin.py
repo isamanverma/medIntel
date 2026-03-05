@@ -6,7 +6,7 @@ Provides system-wide statistics for the admin dashboard.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,10 +14,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.engine import get_session
 from app.deps import require_admin
 from app.models.user import User
-from app.models.enums import UserRole
+from app.models.enums import UserRole, MappingStatus
 from app.models.appointment import Appointment
 from app.models.report import MedicalReport
 from app.models.treatment import TreatmentPlan
+from app.models.mapping import PatientDoctorMapping
+from app.models.profiles import PatientProfile, DoctorProfile
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -114,3 +116,103 @@ async def get_admin_users(
         )
         for u in users
     ]
+
+
+# ── Admin Assignments ─────────────────────────────────────────────
+
+import uuid
+from datetime import datetime
+
+class AssignmentCreate(BaseModel):
+    patient_id: uuid.UUID
+    doctor_id: uuid.UUID
+
+
+class AssignmentResponse(BaseModel):
+    id: uuid.UUID
+    patient_id: uuid.UUID
+    doctor_id: uuid.UUID
+    status: str
+    created_at: str
+
+    model_config = {"from_attributes": True}
+
+
+@router.post("/assignments", response_model=AssignmentResponse, status_code=status.HTTP_201_CREATED)
+async def create_assignment(
+    body: AssignmentCreate,
+    session: AsyncSession = Depends(get_session),
+    _admin: User = Depends(require_admin),
+) -> AssignmentResponse:
+    """Admin assigns a patient to a doctor."""
+    patient = await session.get(PatientProfile, body.patient_id)
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    doctor = await session.get(DoctorProfile, body.doctor_id)
+    if not doctor:
+        raise HTTPException(status_code=404, detail="Doctor not found")
+
+    # Check for existing active mapping
+    existing = await session.execute(
+        select(PatientDoctorMapping).where(
+            PatientDoctorMapping.patient_id == body.patient_id,
+            PatientDoctorMapping.doctor_id == body.doctor_id,
+            PatientDoctorMapping.status == MappingStatus.ACTIVE,
+        )
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=409, detail="Assignment already exists")
+
+    mapping = PatientDoctorMapping(
+        patient_id=body.patient_id,
+        doctor_id=body.doctor_id,
+        status=MappingStatus.ACTIVE,
+    )
+    session.add(mapping)
+    await session.commit()
+    await session.refresh(mapping)
+    return AssignmentResponse(
+        id=mapping.id,
+        patient_id=mapping.patient_id,
+        doctor_id=mapping.doctor_id,
+        status=mapping.status,
+        created_at=str(mapping.created_at),
+    )
+
+
+@router.get("/assignments", response_model=list[AssignmentResponse])
+async def get_assignments(
+    session: AsyncSession = Depends(get_session),
+    _admin: User = Depends(require_admin),
+) -> list[AssignmentResponse]:
+    """List all patient-doctor assignments."""
+    result = await session.execute(
+        select(PatientDoctorMapping).order_by(PatientDoctorMapping.created_at.desc())
+    )
+    return [
+        AssignmentResponse(
+            id=m.id,
+            patient_id=m.patient_id,
+            doctor_id=m.doctor_id,
+            status=m.status,
+            created_at=str(m.created_at),
+        )
+        for m in result.scalars().all()
+    ]
+
+
+@router.delete("/assignments/{assignment_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_assignment(
+    assignment_id: uuid.UUID,
+    session: AsyncSession = Depends(get_session),
+    _admin: User = Depends(require_admin),
+) -> None:
+    """Admin removes a patient-doctor assignment."""
+    mapping = await session.get(PatientDoctorMapping, assignment_id)
+    if not mapping:
+        raise HTTPException(status_code=404, detail="Assignment not found")
+    mapping.status = MappingStatus.INACTIVE
+    session.add(mapping)
+    await session.commit()
+

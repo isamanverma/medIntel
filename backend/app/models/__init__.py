@@ -22,6 +22,8 @@ from app.models.treatment import TreatmentPlan, Medication  # noqa: F401
 from app.models.report import MedicalReport  # noqa: F401
 from app.models.adherence import AdherenceLog  # noqa: F401
 from app.models.insight import AgentInsight  # noqa: F401
+from app.models.referral import Referral  # noqa: F401
+from app.models.care_team import CareTeam, CareTeamMember  # noqa: F401
 
 __all__ = [
     # Enums
@@ -47,4 +49,8 @@ __all__ = [
     # Patient Engagement & Agent Outputs
     "AdherenceLog",
     "AgentInsight",
+    # Referrals & Collaboration
+    "Referral",
+    "CareTeam",
+    "CareTeamMember",
 ]
