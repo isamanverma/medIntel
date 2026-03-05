@@ -8,7 +8,7 @@ MedIntel is an AI-driven healthcare intelligence ecosystem with a FastAPI backen
 
 | Layer | Technology |
 |-------|-----------|
-| Backend | Python 3.13+ · FastAPI · SQLModel · asyncpg · bcrypt · python-jose |
+| Backend | Python 3.13+ · FastAPI · SQLModel · asyncpg · bcrypt · python-jose · slowapi |
 | Database | Supabase PostgreSQL (via Alembic migrations) |
 | Frontend | Next.js 16 · TypeScript 5 · Tailwind CSS v4 · Biome |
 | Auth | Custom JWT + Hybrid BFF cookie proxy |
@@ -16,37 +16,42 @@ MedIntel is an AI-driven healthcare intelligence ecosystem with a FastAPI backen
 ## Architecture
 
 - **Backend** (`backend/`): FastAPI with domain-driven modules under `app/`
-  - `api/auth.py` — Auth routes (signup, login, me)
+  - `api/auth.py` — Auth routes (signup, login, me) + rate limiting
   - `api/profiles.py` — Patient/Doctor profile CRUD (6 routes)
   - `api/appointments.py` — Appointment management (5 routes)
   - `api/mappings.py` — Patient-Doctor relationships (4 routes)
   - `api/treatments.py` — Treatment plans + medications (4 routes)
   - `api/reports.py` — Medical report metadata (3 routes)
   - `api/adherence.py` — Medication adherence tracking (3 routes)
-  - `api/admin.py` — Admin stats endpoint (1 route)
+  - `api/admin.py` — Admin stats + user list (2 routes)
   - `deps.py` — Shared auth dependencies (get_current_user, require_patient/doctor/admin)
   - `services/auth_service.py` — Business logic (bcrypt, JWT)
   - `models/` — 9 SQLModel tables (User, PatientProfile, DoctorProfile, Appointment, TreatmentPlan, Medication, MedicalReport, AdherenceLog, AgentInsight)
-  - `core/config.py` — Settings from environment variables
-  - `db/engine.py` — Async engine + session factory
+  - `core/config.py` — Settings from environment variables (incl. TESTING, RATE_LIMIT_ENABLED)
+  - `db/engine.py` — Async engine + session factory + before_flush listener
   - `tests/` — 35 tests (pytest + httpx + pytest-asyncio)
 
 - **Frontend** (`frontend/`): Next.js App Router
   - `app/(auth)/` — Login/signup pages with role toggle
-  - `app/patient/dashboard/` — Patient portal (live API data)
-  - `app/doctor/dashboard/` — Doctor portal (live API data)
-  - `app/admin/dashboard/` — Admin portal (live API data)
+  - `app/patient/dashboard/` — Patient portal (live API data + profile form + appointment booking)
+  - `app/doctor/dashboard/` — Doctor portal (live API data + patient management + appointment actions)
+  - `app/admin/dashboard/` — Admin portal (live stats + user management table)
   - `app/api/auth/` — BFF proxy routes (login, signup, me, logout)
   - `components/providers/SessionProvider.tsx` — Custom auth context
+  - `components/ui/Modal.tsx` — Reusable modal component
+  - `components/ui/Toast.tsx` — Toast notification system
   - `proxy.ts` — JWT-based route protection
 
 ## Current Status
 
 - ✅ Auth flow fully working (signup → login → session → logout)
 - ✅ Database schema defined (9 tables with relationships)
-- ✅ All CRUD APIs implemented (26 endpoints, 35 tests passing)
-- ✅ All dashboards connected to live API data (Phase 3 complete)
-- ❌ AI/ML intelligence layer not started
+- ✅ All CRUD APIs implemented (28 endpoints, 35 tests passing)
+- ✅ All dashboards interactive with live API data (Phases 3-4 complete)
+- ✅ Rate limiting on auth endpoints (ISSUE-003 fixed)
+- ✅ Profile onboarding forms + appointment booking + appointment management
+- ✅ Admin user management table
+- ❌ AI/ML intelligence layer not started (Phase 6)
 
 ## Running Locally
 
@@ -72,15 +77,15 @@ cd frontend && npm install
 # Database migrations
 cd backend && uv run alembic upgrade head
 
-# Run tests
-cd backend && uv run pytest tests/ -v
+# Run tests (TESTING=1 disables rate limiting)
+cd backend && TESTING=1 uv run pytest tests/ -v
 ```
 
 ## Capstone Roadmap
 
 | Document | Purpose |
 |----------|---------|
-| [.gemini/TODO.md](.gemini/TODO.md) | 7-phase roadmap (Phases 1-3 complete) |
-| [.gemini/ISSUES.md](.gemini/ISSUES.md) | 27 issues tracked, 25 resolved |
+| [.gemini/TODO.md](.gemini/TODO.md) | 7-phase roadmap (Phases 1-4 complete) |
+| [.gemini/ISSUES.md](.gemini/ISSUES.md) | 27 issues tracked, 26 resolved |
 | [.gemini/KNOWLEDGE.md](.gemini/KNOWLEDGE.md) | Complete project knowledge base |
 | [.gemini/prd.md](.gemini/prd.md) | Product requirements document |

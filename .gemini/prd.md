@@ -19,14 +19,23 @@ MedIntel is a production-grade AI-driven healthcare intelligence platform for a 
 10. **Medication Adherence** — Tracking taken/missed/late doses
 11. **Patient-Doctor Mapping** — Relationship management between patients and doctors
 12. **Admin Stats** — Real-time platform statistics dashboard
-13. **Live Dashboards** — All 3 dashboards connected to real API data (no hardcoded data)
+13. **Live Interactive Dashboards** — Profile onboarding, appointment booking, appointment management, admin user table
+14. **Rate Limiting** — slowapi on auth endpoints (3/min signup, 5/min login)
+15. **Reusable UI Components** — Modal, Toast notification system
 
-### Planned (Not Yet Built)
-14. **AI Agent Insights** — Report analysis, risk detection, triage recommendations
-15. **Profile Onboarding** — Post-signup profile completion flow
+### Planned (Phase 5)
+16. **Comprehensive Patient Data** — Allergies, chronic conditions, vitals, insurance, demographics
+17. **Admin Patient-Doctor Assignment** — Admin assigns patients to doctors
+18. **Doctor Referral System** — Refer patients to other doctors with reason & status tracking
+19. **Multi-Doctor Care Teams** — Multiple doctors collaborating on a single patient case
+20. **CSRF Protection** — Double-submit cookie pattern
 
-## Database Schema (9 Tables)
+### Planned (Phase 6)
+21. **AI Agent Insights** — Report analysis, risk detection, triage recommendations (Google Gemini API)
 
+## Database Schema (Current: 9 Tables, Planned: 12+)
+
+### Current Tables
 - `users` — Core user table with role, auth provider, active status
 - `patient_profiles` — Extended patient info (FK → users)
 - `doctor_profiles` — Extended doctor info (FK → users)
@@ -38,6 +47,11 @@ MedIntel is a production-grade AI-driven healthcare intelligence platform for a 
 - `medical_reports` — Uploaded documents (FK → patient_profiles, users)
 - `agent_insights` — AI-generated clinical insights
 
+### Planned Tables (Phase 5)
+- `referrals` — Doctor-to-doctor referrals with status (PENDING/ACCEPTED/DECLINED)
+- `care_teams` — Named care teams per patient
+- `care_team_members` — Doctors in a care team with roles (PRIMARY/CONSULTANT/SPECIALIST)
+
 ## Non-Functional Requirements
 
 - All files under 300 LOC
@@ -45,8 +59,9 @@ MedIntel is a production-grade AI-driven healthcare intelligence platform for a 
 - Business logic in backend only
 - API-first design
 - No code duplication across layers
+- Rate limiting on sensitive endpoints
 
-## Known Issues (From Code Review)
+## Known Issues
 
-1. No rate limiting on auth endpoints (Phase 4)
-2. No CSRF protection beyond SameSite cookies (Phase 4)
+1. ~~No rate limiting on auth endpoints~~ ✅ RESOLVED (Phase 4)
+2. No CSRF protection beyond SameSite cookies (Phase 5)

@@ -10,7 +10,7 @@
 |-----|-------|
 | Name | MedIntel |
 | Type | AI-powered healthcare intelligence platform |
-| Stage | Production-ready backend, live dashboards (Phases 1-3 complete) |
+| Stage | Production-ready backend, interactive dashboards (Phases 1-4 complete) |
 | User Roles | Patient, Doctor, Admin |
 | Monorepo | `backend/` (FastAPI) + `frontend/` (Next.js) |
 
@@ -134,24 +134,24 @@ For data APIs (not auth), the browser talks directly to FastAPI with the HttpOnl
 | `api/treatments.py` | ~140 | Treatment plans + medications (4 routes) |
 | `api/reports.py` | ~100 | Medical report metadata (3 routes) |
 | `api/adherence.py` | ~100 | Medication adherence tracking (3 routes) |
-| `api/admin.py` | ~80 | Admin stats endpoint (1 route) |
+| `api/admin.py` | ~120 | Admin stats + user list (2 routes) |
 | `deps.py` | ~60 | Shared auth dependencies |
 | `services/auth_service.py` | 280 | Auth business logic |
-| `core/config.py` | 61 | Settings from env |
+| `core/config.py` | ~75 | Settings from env (TESTING, RATE_LIMIT_ENABLED) |
 | `db/engine.py` | 100 | Async engine + sessions + before_flush listener |
 | `models/*.py` | ~600 | 9 SQLModel tables |
 | `tests/*.py` | ~400 | 35 tests (auth, profiles, appointments, admin) |
 
-### Frontend (21 files)
+### Frontend (23+ files)
 | File | LOC | Purpose |
 |------|-----|---------|
-| `app/layout.tsx` | 45 | Root layout, fonts, SessionProvider |
+| `app/layout.tsx` | 47 | Root layout, fonts, SessionProvider, ToastProvider |
 | `app/page.tsx` | 273 | Landing/marketing page |
 | `app/(auth)/login/page.tsx` | 308 | Login form with role toggle |
 | `app/(auth)/signup/page.tsx` | 414 | Signup form with validation |
-| `app/patient/dashboard/page.tsx` | ~290 | Patient portal (live API data) |
-| `app/doctor/dashboard/page.tsx` | ~280 | Doctor portal (live API data) |
-| `app/admin/dashboard/page.tsx` | ~270 | Admin portal (live API data) |
+| `app/patient/dashboard/page.tsx` | ~430 | Patient portal (profile form + appointment booking) |
+| `app/doctor/dashboard/page.tsx` | ~400 | Doctor portal (add patient + appointment actions) |
+| `app/admin/dashboard/page.tsx` | ~300 | Admin portal (stats + user management table) |
 | `app/api/auth/login/route.ts` | 122 | BFF login proxy |
 | `app/api/auth/signup/route.ts` | 140 | BFF signup proxy |
 | `app/api/auth/me/route.ts` | 86 | BFF session check |
@@ -159,7 +159,9 @@ For data APIs (not auth), the browser talks directly to FastAPI with the HttpOnl
 | `components/providers/SessionProvider.tsx` | 184 | Auth context provider |
 | `components/ui/Navbar.tsx` | 207 | Global navbar |
 | `components/ui/Footer.tsx` | 135 | Global footer |
-| `lib/api-client.ts` | ~230 | Typed fetch wrapper + domain API functions |
+| `components/ui/Modal.tsx` | ~80 | Reusable modal (escape, backdrop, scroll lock) |
+| `components/ui/Toast.tsx` | ~95 | Toast notification system (success/error/info) |
+| `lib/api-client.ts` | ~370 | Typed fetch wrapper + 13 mutation functions |
 | `proxy.ts` | 159 | JWT route protection |
 
 ---
@@ -261,10 +263,11 @@ npm run lint                                      # Biome lint
 | GET | `/api/adherence/history/{patient_id}` | Any |
 | GET | `/api/adherence/stats/{patient_id}` | Any |
 
-### Admin (1 route)
+### Admin (2 routes)
 | Method | Path | Auth |
 |--------|------|------|
 | GET | `/api/admin/stats` | Admin |
+| GET | `/api/admin/users` | Admin |
 
 ### BFF Proxy Routes (Frontend)
 | Method | Path | Description |

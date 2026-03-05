@@ -38,7 +38,7 @@
 
 ## Phase 2: Backend CRUD APIs ✅ COMPLETE
 
-> All 25 endpoints implemented + 30 passing tests. TDD approach used throughout.
+> All 27 endpoints implemented + 35 passing tests. TDD approach used throughout.
 
 ### 2.1 Shared Auth Dependency
 - [x] **Create `get_current_user` dependency** — `app/deps.py` with JWT extraction from header/cookie
@@ -84,13 +84,13 @@
 
 ---
 
-## Phase 3: Connect Frontend to Real Data (3–4 days) ✅ COMPLETE
+## Phase 3: Connect Frontend to Real Data ✅ COMPLETE
 
 > Replace every hardcoded array with actual API calls.
 
-### 3.1 Profile Setup Flow
-- [ ] **Add onboarding step** — After signup, prompt patient/doctor to complete their profile
-- [ ] **Profile completion form** — Patient: DOB, blood group, emergency contact. Doctor: specialization, license number
+### 3.1 Profile Setup Flow ✅
+- [x] **Profile onboarding forms** — Patient: DOB, blood group, emergency contact. Doctor: specialization, license number
+- [x] **Profile incomplete banner** — Prompts user to complete profile on dashboard
 
 ### 3.2 Patient Dashboard — Live Data (ISSUE-018) ✅
 - [x] Replace hardcoded `quickStats` with API calls
@@ -114,61 +114,84 @@
 
 ---
 
-## Phase 4: Testing & Quality (2–3 days)
+## Phase 4: Security & Interactive Features ✅ COMPLETE
 
-> Capstone evaluators **will** ask about testing strategy.
+> Rate limiting, interactive forms, reusable UI components.
 
-### 4.1 Backend Tests (pytest) ✔️ DONE (moved to Phase 2)
-- [x] **Install pytest + httpx** — `uv add --dev pytest pytest-asyncio httpx`
-- [x] **Auth tests** — Signup, login, me, duplicate email, wrong password, expired token
-- [x] **Profile tests** — Create, read, update for patient and doctor
-- [x] **Appointment tests** — Book, list, cancel, status transitions
-- [x] **Authorization tests** — Verify patients can’t access doctor endpoints and vice versa
+### 4.1 Security Hardening ✅
+- [x] **Rate limiting** — `slowapi` on auth endpoints: signup 3/min, login 5/min (ISSUE-003)
+- [x] **TESTING/RATE_LIMIT_ENABLED** — Config flags to disable rate limiting in tests
 
-### 4.2 Frontend Quality
-- [ ] **Biome lint** — Ensure `npm run lint` passes cleanly
-- [ ] **Build check** — Ensure `npm run build` completes without errors
+### 4.2 Reusable UI Components ✅
+- [x] **Modal component** — `components/ui/Modal.tsx` with escape, backdrop click, scroll lock
+- [x] **Toast notifications** — `components/ui/Toast.tsx` with success/error/info types
+- [x] **ToastProvider** — Wrapped root layout
 
-### 4.3 Security Hardening
-- [ ] **Rate limiting** — Add `slowapi` for auth endpoints (ISSUE-003)
-- [ ] **CSRF protection** — Double-submit cookie or CSRF tokens (ISSUE-016)
+### 4.3 Interactive Dashboards ✅
+- [x] **Patient dashboard** — Profile onboarding form (5 fields) + appointment booking (doctor select, datetime, notes)
+- [x] **Doctor dashboard** — Profile form (4 fields) + add patient + confirm/cancel/complete appointments
+- [x] **Admin dashboard** — Real user management table (name, email, role, status, joined date)
 
-### 4.4 Testing (ISSUE-025)
-- [ ] Backend test suite with pytest
-- [ ] Document testing strategy for capstone presentation
-
----
-
-## Phase 5: Polish & UX (2–3 days)
-
-> Make it look and feel like a real product.
-
-### 5.1 Navigation & Layout
-- [ ] **Add sidebar navigation** to dashboards
-- [ ] **Add breadcrumbs** on inner pages
-- [ ] **Mobile responsive** — Test all pages on 375px viewport
-
-### 5.2 Forms & Interactions
-- [ ] **Appointment booking form** — Date picker, doctor selection, reason
-- [ ] **Report upload form** — File picker, report type dropdown
-- [ ] **Profile edit form** — Inline editing or modal
-- [ ] **Toast notifications** — Success/error feedback on form submissions
-
-### 5.3 Data Display
-- [ ] **Tables with sorting/filtering** for appointments, reports, patients
-- [ ] **Empty states** — Friendly illustrations when no data exists
-- [ ] **Pagination** on list endpoints
+### 4.4 API Client Mutations ✅
+- [x] **13+ mutation functions** — createPatientProfile, createDoctorProfile, createAppointment, updateAppointmentStatus, createMapping, deleteMapping, createTreatmentPlan, getPatientTreatmentPlans, getAdminUsers
+- [x] **GET `/api/admin/users`** — Admin user list endpoint
 
 ---
 
-## Phase 6: AI/Intelligence Layer — Free Tier Only (3–5 days)
+## Phase 5: Patient Data, Referrals & Multi-Doctor Collaboration (3–5 days)
 
-> The "wow factor" that makes this a healthcare **intelligence** platform. All free.
+> Clinically comprehensive patient data fields, admin-driven assignments, and multi-doctor care.
 
-### 6.1 Local AI Options (Zero Cost)
-- [ ] **Option A: Ollama + local LLM** — Llama 3.1 8B, Mistral 7B. Free, runs locally
-- [ ] **Option B: Google Gemini API free tier** — 15 RPM free, sufficient for demo [USE THIS ONE]
-- [ ] **Option C: Hugging Face Inference API** — Free tier for summarization
+### 5.1 Comprehensive Patient Profile Fields
+- [ ] **Medical history** — Allergies (text array), chronic conditions (text array), past surgeries
+- [ ] **Current medications** — Name, dosage, frequency (separate from treatment plan meds)
+- [ ] **Vitals tracking** — Height (cm), weight (kg), BMI (auto-calculated), blood pressure
+- [ ] **Insurance info** — Provider name, policy number, group number
+- [ ] **Address** — Street, city, state, zip code, country
+- [ ] **Demographics** — Gender (select), phone number, preferred language
+- [ ] **Backend**: Extend `PatientProfile` model + Alembic migration
+- [ ] **Frontend**: Multi-section patient profile form (Personal → Medical → Insurance → Contact)
+
+### 5.2 Admin Patient-Doctor Assignment
+- [ ] **Backend**: `POST /api/admin/assignments` — Admin assigns a patient to a doctor (creates mapping)
+- [ ] **Backend**: `GET /api/admin/assignments` — List all patient-doctor assignments
+- [ ] **Backend**: `DELETE /api/admin/assignments/{id}` — Admin removes an assignment
+- [ ] **Frontend**: Admin dashboard — patient-doctor assignment form (search patient + select doctor)
+- [ ] **Frontend**: Assignment list table with bulk actions
+
+### 5.3 Doctor Referral System
+- [ ] **Backend model**: `Referral` table — `referring_doctor_id`, `referred_doctor_id`, `patient_id`, `reason`, `status` (PENDING/ACCEPTED/DECLINED), `notes`
+- [ ] **Backend**: `POST /api/referrals` — Doctor creates a referral to another doctor
+- [ ] **Backend**: `GET /api/referrals/sent` — Doctor's outgoing referrals
+- [ ] **Backend**: `GET /api/referrals/received` — Doctor's incoming referrals
+- [ ] **Backend**: `PATCH /api/referrals/{id}` — Accept/decline a referral
+- [ ] **Frontend**: Doctor dashboard — "Refer Patient" form (select patient, select doctor, reason)
+- [ ] **Frontend**: Referral inbox/outbox views with accept/decline actions
+
+### 5.4 Multi-Doctor Collaboration (Care Team)
+- [ ] **Backend model**: `CareTeam` table — `patient_id`, `name` (e.g. "Cardiac Care Team")
+- [ ] **Backend model**: `CareTeamMember` — `care_team_id`, `doctor_id`, `role` (PRIMARY/CONSULTANT/SPECIALIST)
+- [ ] **Backend**: `POST /api/care-teams` — Create a care team for a patient
+- [ ] **Backend**: `POST /api/care-teams/{id}/members` — Add a doctor to the care team
+- [ ] **Backend**: `GET /api/care-teams/patient/{id}` — Get all care teams for a patient
+- [ ] **Backend**: `GET /api/care-teams/doctor/me` — Get care teams a doctor belongs to
+- [ ] **Frontend**: Patient card showing care team members
+- [ ] **Frontend**: Doctor dashboard — care team management view
+
+### 5.5 CSRF Protection (ISSUE-016)
+- [ ] **CSRF token generation** — Double-submit cookie pattern on BFF routes
+- [ ] **Frontend** — Send CSRF cookie value in header on state-changing requests
+
+---
+
+## Phase 6: AI/Intelligence Layer — Google Gemini Free Tier (3–5 days)
+
+> The "wow factor" that makes this a healthcare **intelligence** platform.
+
+### 6.1 AI Integration Setup
+- [ ] **Google Gemini API free tier** — 15 RPM free, sufficient for demo [USE THIS ONE]
+- [ ] **Backend**: `services/ai_service.py` — Gemini API wrapper with retry + rate limiting
+- [ ] **Config**: `GEMINI_API_KEY` env var
 
 ### 6.2 Report Analysis (AgentInsight)
 - [ ] **Auto-summarize uploaded reports** → store in `medical_reports.ai_summary`
@@ -218,9 +241,7 @@
 |------|------------|-------|
 | Database | Supabase Free (already using) | 500 MB, 2 projects |
 | File Storage | Supabase Storage Free / local disk | 1 GB |
-| AI/LLM | Ollama (local) | Unlimited, needs 8GB+ RAM |
-| AI/LLM Alt | Google Gemini API Free | 15 RPM |
-| AI/LLM Alt | Hugging Face Inference | Rate limited |
+| AI/LLM | Google Gemini API Free | 15 RPM |
 | Hosting | Vercel Free (frontend) | 100 GB bandwidth |
 | Hosting | Render Free (backend) | Spins down after 15 min |
 
@@ -232,12 +253,12 @@
 |-------|--------|-----------|
 | ~~Phase 1: Cleanup~~ | ~~1–2 days~~ | ✅ Done |
 | ~~Phase 2: Backend CRUD~~ | ~~3–5 days~~ | ✅ Done |
-| Phase 3: Frontend Connect | 3–4 days | 8–11 days |
-| Phase 4: Testing | 2–3 days | 10–14 days |
-| Phase 5: Polish | 2–3 days | 12–17 days |
-| Phase 6: AI Layer | 3–5 days | 15–22 days |
-| Phase 7: Advanced | 5+ days | 20–27+ days |
+| ~~Phase 3: Frontend Connect~~ | ~~3–4 days~~ | ✅ Done |
+| ~~Phase 4: Security + Interactive~~ | ~~2–3 days~~ | ✅ Done |
+| Phase 5: Patient Data + Referrals | 3–5 days | 15–19 days |
+| Phase 6: AI Layer | 3–5 days | 18–24 days |
+| Phase 7: Advanced | 5+ days | 23–29+ days |
 
-**Minimum viable capstone** = Phases 1–5 (~17 days)
-**Impressive capstone** = Phases 1–6 (~22 days)
-**Exceptional capstone** = All phases (~27+ days)
+**Minimum viable capstone** = Phases 1–5 (~19 days)
+**Impressive capstone** = Phases 1–6 (~24 days)
+**Exceptional capstone** = All phases (~29+ days)
