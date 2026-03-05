@@ -83,12 +83,13 @@ macOS/Linux:
 medintel/
   backend/
     app/
-      api/auth.py           # Auth endpoints (signup, login, me)
+      api/                   # All feature endpoints (auth, profiles, appointments, etc.)
       services/              # Business logic
-      models/                # SQLModel table definitions (9 tables)
+      models/                # SQLModel table definitions (12 tables)
       core/config.py         # Settings from env vars
       db/engine.py           # Async database engine
     alembic/                 # Database migrations
+    tests/                   # Pytest suite (51 tests)
     pyproject.toml
 
   frontend/
@@ -120,9 +121,7 @@ We use a BFF (Backend-for-Frontend) pattern:
 
 ## Database
 
-9 tables: `users`, `patient_profiles`, `doctor_profiles`, `patient_doctor_mappings`, `appointments`, `treatment_plans`, `medications`, `adherence_logs`, `medical_reports`, `agent_insights`.
-
-Currently only the `users` table is actively used (auth). The rest have models defined but no API endpoints yet.
+12 tables: `users`, `patient_profiles`, `doctor_profiles`, `patient_doctor_mappings`, `appointments`, `treatment_plans`, `medications`, `adherence_logs`, `medical_reports`, `agent_insights`, `referrals`, `care_teams`, `care_team_members`.
 
 To create a new migration after changing models:
 
@@ -135,17 +134,16 @@ uv run alembic upgrade head
 ## Current State
 
 What works:
-- Signup, login, logout, session persistence
+- Signup, login, logout, session persistence with rate limiting
 - Role-based route protection (middleware + per-page guards)
-- Landing page, three dashboard shells
+- Landing page and all three dashboard portals
+- **Backend Complete via Phase 5**: 37 API endpoints spanning Profiles, Appointments, Reports, Adherence, Mappings, Referrals, Care Teams, and Admin Assignments.
+- **Frontend Connect**: Interactive Next.js dashboards hitting real APIs spanning Phase 3-4 features.
+- Testing Setup: 51 tests covering complete backend features.
 
 What does not work yet:
-- Profile management (models exist, no API)
-- Appointments (models exist, no API)
-- Reports, treatment plans, adherence tracking (models exist, no API)
-- Dashboards show hardcoded mock data, not real data
-- No AI/ML features
-- No tests
+- Frontend views for Phase 5 features (Referrals, Care Teams, Admin Assignments, extended Patient profiles) are not yet built.
+- No AI/ML features yet (Phase 6).
 
 ## Documentation
 
