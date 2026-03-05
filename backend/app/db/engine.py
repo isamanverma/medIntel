@@ -81,3 +81,21 @@ async def init_db() -> None:
     """
     async with async_engine.begin() as conn:
         await conn.run_sync(SQLModel.metadata.create_all)
+
+
+# ──────────────────────────────────────────────────────────────────
+#  Auto-update `updated_at` on flush  (ISSUE-010 fix)
+# ──────────────────────────────────────────────────────────────────
+
+from datetime import datetime, timezone  # noqa: E402
+from sqlalchemy import event  # noqa: E402
+from sqlalchemy.orm import Session as SyncSession  # noqa: E402
+
+
+@event.listens_for(SyncSession, "before_flush")
+def _set_updated_at(session: SyncSession, flush_context, instances) -> None:  # type: ignore[no-untyped-def]
+    """Automatically set `updated_at` for any dirty instance that has the column."""
+    now = datetime.now(timezone.utc)
+    for obj in session.dirty:
+        if session.is_modified(obj) and hasattr(obj, "updated_at"):
+            obj.updated_at = now

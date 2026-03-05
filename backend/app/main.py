@@ -25,6 +25,7 @@ from app.api.mappings import router as mappings_router
 from app.api.treatments import router as treatments_router
 from app.api.reports import router as reports_router
 from app.api.adherence import router as adherence_router
+from app.api.admin import router as admin_router
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -89,6 +90,7 @@ app.include_router(mappings_router, prefix="/api")
 app.include_router(treatments_router, prefix="/api")
 app.include_router(reports_router, prefix="/api")
 app.include_router(adherence_router, prefix="/api")
+app.include_router(admin_router)  # already has /api/admin prefix
 
 
 # ──────────────────────────────────────────────────────────────────

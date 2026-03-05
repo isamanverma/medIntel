@@ -58,7 +58,6 @@ class TreatmentPlan(SQLModel, table=True):
             DateTime(timezone=True),
             nullable=False,
             server_default=text("now()"),
-            onupdate=lambda: datetime.now(timezone.utc),
         ),
     )
 
