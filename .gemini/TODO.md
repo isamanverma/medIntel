@@ -5,28 +5,34 @@
 
 ---
 
-## Phase 1: Cleanup & Housekeeping (1–2 days)
+## Phase 1: Cleanup & Housekeeping ✅ COMPLETE
 
 > Small, quick fixes that remove tech debt and make the codebase capstone-presentable.
 
 ### 1.1 Fix Bugs & Dead Code
-- [ ] **Fix admin dashboard role guard** — Add `session.user.role !== "ADMIN"` check in `app/admin/dashboard/page.tsx` (copy pattern from patient/doctor dashboards)
-- [ ] **Delete broken shim** — Remove `backend/app/auth.py` (imports non-existent `app.api.v1.auth`)
-- [ ] **Delete empty files** — Remove `backend/app/deps.py`, `backend/app/routes/doctors.py`, `backend/app/routes/patients.py`, `backend/app/routes/reports.py`, `backend/app/routes/` directory
-- [ ] **Delete unused schemas** — Remove `backend/app/schemas.py` (nothing imports it)
-- [ ] **Delete stale types** — Remove `frontend/types/next-auth.d.ts` (NextAuth was removed)
-- [ ] **Remove hardcoded demo creds** — Remove the admin credentials hint from the login page
+- [x] **Fix admin dashboard role guard** — ISSUE-001
+- [x] **Delete broken shim** — `backend/app/auth.py` (ISSUE-005)
+- [x] **Delete empty files** — `routes/`, `deps.py` (ISSUE-006, ISSUE-007)
+- [x] **Delete unused schemas** — `schemas.py` (ISSUE-008)
+- [x] **Delete stale types** — `next-auth.d.ts` (ISSUE-009)
+- [x] **Remove hardcoded demo creds** — ISSUE-021
+- [x] **Remove unused deps** — `next-auth`, `@auth/core` from package.json
 
 ### 1.2 Config & Security Hardening
-- [ ] **Create `.env.example`** — Template with all env vars (no secrets), add to git
-- [ ] **Make JWT secret required** — Raise `ValueError` in `config.py` if `JWT_SECRET_KEY` is not explicitly set
-- [ ] **Make `echo` configurable** — `echo=os.getenv("SQL_ECHO", "false").lower() == "true"` in `db/engine.py`
-- [ ] **Add `DATABASE_URL` to `.env.example`** — With placeholder format
+- [x] **Create `.env.example`** — backend + frontend (ISSUE-015)
+- [x] **JWT secret warning** — Loud warning at startup if using default (ISSUE-002)
+- [x] **Make `echo` configurable** — `SQL_ECHO` env var (ISSUE-011)
 
 ### 1.3 Consolidate Duplicates
-- [ ] **Unify backend schemas** — Move `LoginRequest` from `api/auth.py` into `models/user.py`, remove the inline definition
-- [ ] **Unify frontend types** — Define `UserRole`, `SessionUser` once in `lib/types.ts`, import everywhere
-- [ ] **Remove backward-compat shims** — Inline `lib/api.ts` and `lib/auth.ts` exports into their real modules, delete the shim files
+- [x] **Unify frontend types** — Created `lib/types.ts` (ISSUE-013)
+- [x] **Remove backward-compat shims** — Deleted `lib/auth.ts`, `lib/api.ts` (ISSUE-023)
+
+### 1.4 Post-Cleanup
+- [x] **Error boundary** — `app/error.tsx` (ISSUE-024)
+- [x] **404 page** — `app/not-found.tsx` (ISSUE-024)
+- [x] **Loading state** — `app/loading.tsx` (ISSUE-024)
+- [x] **Migrate middleware → proxy** — Next.js 16 (ISSUE-026)
+- [x] **Fix sw.js 404 spam** — `public/sw.js` stub (ISSUE-027)
 
 ---
 
@@ -35,8 +41,9 @@
 > Build the endpoints that the dashboards need. Models already exist — you just need routes + services.
 
 ### 2.1 Shared Auth Dependency
-- [ ] **Create `get_current_user` dependency** — A reusable FastAPI `Depends()` that extracts + validates the JWT and returns the `User` (move from `_extract_bearer_token` in `api/auth.py` to a shared `deps.py`)
-- [ ] **Create role-checking dependencies** — `require_patient`, `require_doctor`, `require_admin` decorators/dependencies
+- [ ] **Create `get_current_user` dependency** — A reusable FastAPI `Depends()` that extracts + validates the JWT and returns the `User`
+- [ ] **Create role-checking dependencies** — `require_patient`, `require_doctor`, `require_admin`
+- [ ] **Fix signup race condition** — Catch `IntegrityError` for duplicate emails (ISSUE-004)
 
 ### 2.2 Profile APIs
 - [ ] **POST `/api/profiles/patient`** — Create patient profile (linked to user)
@@ -75,6 +82,9 @@
 - [ ] **GET `/api/adherence/patient/{id}`** — Get adherence history
 - [ ] **GET `/api/adherence/stats/{patient_id}`** — Compute adherence percentage
 
+### 2.8 Fix `updated_at` Timestamps
+- [ ] **Fix `onupdate` lambda** — Set `updated_at` explicitly in service layer (ISSUE-010)
+
 ---
 
 ## Phase 3: Connect Frontend to Real Data (3–4 days)
@@ -85,26 +95,26 @@
 - [ ] **Add onboarding step** — After signup, prompt patient/doctor to complete their profile
 - [ ] **Profile completion form** — Patient: DOB, blood group, emergency contact. Doctor: specialization, license number
 
-### 3.2 Patient Dashboard — Live Data
-- [ ] Replace hardcoded `quickStats` with API calls (`/api/appointments/upcoming`, `/api/reports/patient/me`, etc.)
-- [ ] Replace `recentActivity` with real data from appointments, reports, adherence
-- [ ] Replace health overview (BP, heart rate, BMI) with data from latest report or vitals API
+### 3.2 Patient Dashboard — Live Data (ISSUE-018)
+- [ ] Replace hardcoded `quickStats` with API calls
+- [ ] Replace `recentActivity` with real data
+- [ ] Replace health overview with data from vitals API
 - [ ] Show real "Health Score" or remove the fake one
 
-### 3.3 Doctor Dashboard — Live Data
+### 3.3 Doctor Dashboard — Live Data (ISSUE-017)
 - [ ] Replace hardcoded `recentPatients` with `/api/mappings/my-patients` + `/api/appointments/upcoming`
-- [ ] Replace stats (Total Patients, Appointments Today) with real counts
+- [ ] Replace stats with real counts
 - [ ] Make "Today's Schedule" pull from real appointment data
-- [ ] Each doctor sees **only their own** patients and appointments
+- [ ] Each doctor sees **only their own** patients
 
-### 3.4 Admin Dashboard — Live Data
-- [ ] Build `/api/admin/stats` endpoint (total users, recent signups)
+### 3.4 Admin Dashboard — Live Data (ISSUE-019)
+- [ ] Build `/api/admin/stats` endpoint
 - [ ] Replace hardcoded stats with real database counts
-- [ ] Build basic user management list (GET `/api/admin/users`)
+- [ ] Build basic user management list
 
-### 3.5 Fix Landing Page
-- [ ] Remove or label fabricated stats (`50k+` records, `99.9%` uptime) — either show real stats or display "In Development"
-- [ ] Make footer links either work or remove them (Documentation, Privacy Policy, etc.)
+### 3.5 Fix Landing Page & Footer (ISSUE-020, ISSUE-022)
+- [ ] Remove or label fabricated stats
+- [ ] Make footer links work or remove them
 
 ---
 
@@ -119,14 +129,17 @@
 - [ ] **Appointment tests** — Book, list, cancel, status transitions
 - [ ] **Authorization tests** — Verify patients can't access doctor endpoints and vice versa
 
-### 4.2 Frontend Tests (optional but impressive)
+### 4.2 Frontend Quality
 - [ ] **Biome lint** — Ensure `npm run lint` passes cleanly
 - [ ] **Build check** — Ensure `npm run build` completes without errors
 
-### 4.3 Error Handling
-- [ ] **Add global error boundary** in Next.js (`app/error.tsx`)
-- [ ] **Add 404 page** (`app/not-found.tsx`)
-- [ ] **Add loading states** (`app/loading.tsx` for each route group)
+### 4.3 Security Hardening
+- [ ] **Rate limiting** — Add `slowapi` for auth endpoints (ISSUE-003)
+- [ ] **CSRF protection** — Double-submit cookie or CSRF tokens (ISSUE-016)
+
+### 4.4 Testing (ISSUE-025)
+- [ ] Backend test suite with pytest
+- [ ] Document testing strategy for capstone presentation
 
 ---
 
@@ -135,7 +148,7 @@
 > Make it look and feel like a real product.
 
 ### 5.1 Navigation & Layout
-- [ ] **Add sidebar navigation** to dashboards (patient: Appointments, Reports, Profile, Settings. Doctor: Patients, Schedule, Reports, Settings)
+- [ ] **Add sidebar navigation** to dashboards
 - [ ] **Add breadcrumbs** on inner pages
 - [ ] **Mobile responsive** — Test all pages on 375px viewport
 
@@ -157,49 +170,49 @@
 > The "wow factor" that makes this a healthcare **intelligence** platform. All free.
 
 ### 6.1 Local AI Options (Zero Cost)
-- [ ] **Option A: Ollama + local LLM** — Run a small model locally (Llama 3.1 8B, Mistral 7B) for text analysis. Free, runs on your machine
+- [ ] **Option A: Ollama + local LLM** — Llama 3.1 8B, Mistral 7B. Free, runs locally
 - [ ] **Option B: Google Gemini API free tier** — 15 RPM free, sufficient for demo
-- [ ] **Option C: Hugging Face Inference API** — Free tier for summarization models
+- [ ] **Option C: Hugging Face Inference API** — Free tier for summarization
 
 ### 6.2 Report Analysis (AgentInsight)
-- [ ] **Auto-summarize uploaded reports** — When a report is uploaded, send the text to the AI model for summarization → store in `medical_reports.ai_summary`
-- [ ] **Extract key findings** — Parse medications, conditions, recommendations from report text → store in `agent_insights`
-- [ ] **Risk/severity classification** — Classify insights as INFO/WARNING/CRITICAL using the AI
+- [ ] **Auto-summarize uploaded reports** → store in `medical_reports.ai_summary`
+- [ ] **Extract key findings** → store in `agent_insights`
+- [ ] **Risk/severity classification** — INFO/WARNING/CRITICAL
 
 ### 6.3 Patient Insights Dashboard
-- [ ] **Show AI-generated insights** on patient dashboard — "Based on your recent lab report, your cholesterol is borderline high"
-- [ ] **Doctor view of insights** — Show aggregated insights for each patient on the doctor dashboard
-- [ ] **Acknowledge/dismiss insights** — Toggle `is_acknowledged` on `AgentInsight`
+- [ ] **Show AI-generated insights** on patient dashboard
+- [ ] **Doctor view of insights** — Aggregated per patient
+- [ ] **Acknowledge/dismiss insights**
 
 ### 6.4 Adherence Intelligence
-- [ ] **Adherence score calculation** — Percentage of taken vs missed medications
-- [ ] **AI-generated adherence tips** — "You've been missing your evening dose. Consider setting a 7 PM alarm."
-- [ ] **Streak tracking** — "5-day adherence streak! Keep it up."
+- [ ] **Adherence score calculation**
+- [ ] **AI-generated adherence tips**
+- [ ] **Streak tracking**
 
 ---
 
 ## Phase 7: Advanced Features — If Time Permits (5+ days)
 
-> These push it from "good capstone" to "exceptional capstone." Only attempt after Phases 1–6.
+> These push it from "good capstone" to "exceptional capstone."
 
 ### 7.1 Real-Time Notifications
-- [ ] **WebSocket or SSE** — Notify doctors when appointment is booked, patients when results are ready
-- [ ] **In-app notification bell** — Unread count badge, notification drawer
+- [ ] **WebSocket or SSE**
+- [ ] **In-app notification bell**
 
 ### 7.2 Data Visualization
-- [ ] **Charts on dashboards** — Use free Chart.js or Recharts
-- [ ] **Adherence trend graph** — Weekly/monthly adherence over time
-- [ ] **Appointment analytics** — Completed vs cancelled ratio for doctors
+- [ ] **Charts on dashboards** — Chart.js or Recharts
+- [ ] **Adherence trend graph**
+- [ ] **Appointment analytics**
 
 ### 7.3 Search & Filtering
-- [ ] **Patient search for doctors** — Search by name, condition, date range
-- [ ] **Report search** — Full-text search on report content
+- [ ] **Patient search for doctors**
+- [ ] **Report search**
 
 ### 7.4 PDF Report Generation
-- [ ] **Generate patient summary PDF** — Treatment plan + medications + adherence + AI insights as a downloadable report
+- [ ] **Generate patient summary PDF**
 
 ### 7.5 Audit Log
-- [ ] **Track all actions** — Who did what, when (important for healthcare compliance)
+- [ ] **Track all actions**
 
 ---
 
@@ -214,7 +227,6 @@
 | AI/LLM Alt | Hugging Face Inference | Rate limited |
 | Hosting | Vercel Free (frontend) | 100 GB bandwidth |
 | Hosting | Render Free (backend) | Spins down after 15 min |
-| Email | None needed for MVP | — |
 
 ---
 
@@ -222,13 +234,13 @@
 
 | Phase | Effort | Cumulative |
 |-------|--------|-----------|
-| Phase 1: Cleanup | 1–2 days | 2 days |
-| Phase 2: Backend CRUD | 3–5 days | 7 days |
-| Phase 3: Frontend Connect | 3–4 days | 11 days |
-| Phase 4: Testing | 2–3 days | 14 days |
-| Phase 5: Polish | 2–3 days | 17 days |
-| Phase 6: AI Layer | 3–5 days | 22 days |
-| Phase 7: Advanced | 5+ days | 27+ days |
+| ~~Phase 1: Cleanup~~ | ~~1–2 days~~ | ✅ Done |
+| Phase 2: Backend CRUD | 3–5 days | 5–7 days |
+| Phase 3: Frontend Connect | 3–4 days | 8–11 days |
+| Phase 4: Testing | 2–3 days | 10–14 days |
+| Phase 5: Polish | 2–3 days | 12–17 days |
+| Phase 6: AI Layer | 3–5 days | 15–22 days |
+| Phase 7: Advanced | 5+ days | 20–27+ days |
 
 **Minimum viable capstone** = Phases 1–5 (~17 days)
 **Impressive capstone** = Phases 1–6 (~22 days)
