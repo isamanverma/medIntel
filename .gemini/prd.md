@@ -11,17 +11,19 @@ MedIntel is a production-grade AI-driven healthcare intelligence platform for a 
 2. **Role-Based Access** — Three roles: PATIENT, DOCTOR, ADMIN with route protection
 3. **Hybrid BFF Auth** — HttpOnly cookie-based session via Next.js API proxy routes
 4. **Landing Page** — Marketing page with features, stats, how-it-works, and CTA sections
-5. **Dashboard Shells** — Placeholder dashboards for all three roles
+5. **Patient Profiles** — Personal health info, emergency contacts, blood group
+6. **Doctor Profiles** — Specialization, license number
+7. **Appointments** — Scheduling, status tracking, meeting notes
+8. **Treatment Plans** — Doctor-created plans with medications
+9. **Medical Reports** — File metadata tracking
+10. **Medication Adherence** — Tracking taken/missed/late doses
+11. **Patient-Doctor Mapping** — Relationship management between patients and doctors
+12. **Admin Stats** — Real-time platform statistics dashboard
+13. **Live Dashboards** — All 3 dashboards connected to real API data (no hardcoded data)
 
 ### Planned (Not Yet Built)
-6. **Patient Profiles** — Personal health info, emergency contacts, blood group
-7. **Doctor Profiles** — Specialization, license number, NPI
-8. **Appointments** — Scheduling, status tracking, meeting notes
-9. **Treatment Plans** — Doctor-created plans with medications
-10. **Medical Reports** — File upload, AI analysis status, AI summaries
-11. **Medication Adherence** — Tracking taken/missed/late doses
-12. **AI Agent Insights** — Report analysis, risk detection, triage recommendations
-13. **Patient-Doctor Mapping** — Relationship management between patients and doctors
+14. **AI Agent Insights** — Report analysis, risk detection, triage recommendations
+15. **Profile Onboarding** — Post-signup profile completion flow
 
 ## Database Schema (9 Tables)
 
@@ -46,9 +48,5 @@ MedIntel is a production-grade AI-driven healthcare intelligence platform for a 
 
 ## Known Issues (From Code Review)
 
-1. Admin dashboard missing role guard (any authenticated user can access)
-2. Broken import in `backend/app/auth.py` (references non-existent `app.api.v1.auth`)
-3. Hardcoded JWT secret default in config
-4. Dead code: empty route files, unused `schemas.py`, stale `next-auth.d.ts`
-5. `onupdate` lambda for `updated_at` columns won't fire with ORM pattern
-6. No tests, no rate limiting, no `.env.example`
+1. No rate limiting on auth endpoints (Phase 4)
+2. No CSRF protection beyond SameSite cookies (Phase 4)

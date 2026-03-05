@@ -3,7 +3,7 @@
 > Comprehensive inventory of every issue found during code review.
 > Each issue links to the TODO phase where it will be resolved.
 >
-> Last updated: 2026-03-06 (after Phase 2 completion)
+> Last updated: 2026-03-06 (after Phase 3 completion)
 
 ---
 
@@ -48,12 +48,8 @@
 
 ## 🟡 Medium — Best Practice Violations
 
-### ISSUE-010: `onupdate` Lambda Won't Fire with ORM Pattern
-- **File**: `backend/app/models/user.py` (line 152)
-- **Problem**: `onupdate=lambda: datetime.now(timezone.utc)` on `updated_at` won't fire with the ORM pattern (`session.add()` + `session.commit()`).
-- **Impact**: `updated_at` column never auto-updates
-- **Fix**: Use `@event.listens_for(Session, "before_flush")` or set `updated_at` explicitly in services
-- **TODO Phase**: Phase 2
+### ~~ISSUE-010: `onupdate` Lambda Won't Fire with ORM Pattern~~ ✅ RESOLVED
+- **Fixed in**: Phase 3 — Removed broken `onupdate` lambda from 4 models. Added SQLAlchemy `before_flush` event listener in `engine.py` that auto-sets `updated_at` on any dirty ORM instance.
 
 ### ~~ISSUE-011: SQL `echo=True` Left On~~ ✅ RESOLVED
 - **Fixed in**: Phase 1.2 — Now reads `SQL_ECHO` env var, defaults to `false`.
@@ -80,38 +76,23 @@
 
 ## 🔵 Low — Hardcoded Data & Cosmetic Issues
 
-### ISSUE-017: All Doctors See Identical Appointments
-- **File**: `frontend/app/doctor/dashboard/page.tsx`
-- **Problem**: Hardcoded static array of 5 fake patients. Every doctor sees the same schedule.
-- **Fix**: Replace with API call to `/api/appointments/upcoming`
-- **TODO Phase**: Phase 3.3
+### ~~ISSUE-017: All Doctors See Identical Appointments~~ ✅ RESOLVED
+- **Fixed in**: Phase 3 — Doctor dashboard rewritten to fetch real data from `/api/appointments/upcoming` and `/api/mappings/my-patients`. Shows proper empty states.
 
-### ISSUE-018: All Patients See Identical Health Data
-- **File**: `frontend/app/patient/dashboard/page.tsx`
-- **Problem**: Hardcoded stats, fake recent activity with stale dates.
-- **Fix**: Replace with real API data or empty states
-- **TODO Phase**: Phase 3.2
+### ~~ISSUE-018: All Patients See Identical Health Data~~ ✅ RESOLVED
+- **Fixed in**: Phase 3 — Patient dashboard rewritten with live API calls for appointments, profile data, doctors. All hardcoded stats removed.
 
-### ISSUE-019: Admin Dashboard Fake System Stats
-- **File**: `frontend/app/admin/dashboard/page.tsx`
-- **Problem**: Shows fabricated stats (1,284 users, 342 sessions, etc.)
-- **Fix**: Build `/api/admin/stats` and display real counts
-- **TODO Phase**: Phase 3.4
+### ~~ISSUE-019: Admin Dashboard Fake System Stats~~ ✅ RESOLVED
+- **Fixed in**: Phase 3 — Built `GET /api/admin/stats` endpoint (7 real DB counts). Admin dashboard now shows live platform statistics.
 
-### ISSUE-020: Landing Page Fabricated Stats
-- **File**: `frontend/app/page.tsx`
-- **Problem**: Claims `50k+` records, `99.9%` uptime — none based on real data.
-- **Fix**: Remove or label as target metrics
-- **TODO Phase**: Phase 3.5
+### ~~ISSUE-020: Landing Page Fabricated Stats~~ ✅ RESOLVED
+- **Fixed in**: Phase 3 — Replaced fabricated stats (50k+ records, 99.9% uptime) with honest labels (3 User Roles, 25+ API Endpoints, RBAC, 256-bit Encryption).
 
 ### ~~ISSUE-021: Demo Credentials Exposed~~ ✅ RESOLVED
 - **Fixed in**: Phase 1.1 — Removed `admin@medintel.com / admin123` from login page.
 
-### ISSUE-022: Footer Dead Links
-- **File**: `frontend/components/ui/Footer.tsx`
-- **Problem**: Multiple `<span>` tags styled as text but do nothing.
-- **Fix**: Either link to real pages or remove them
-- **TODO Phase**: Phase 3.5
+### ~~ISSUE-022: Footer Dead Links~~ ✅ RESOLVED
+- **Fixed in**: Phase 3 — Removed all dead `<span>` tags (Documentation, API Reference, Privacy Policy, Terms, Support, System Status). Kept only working links.
 
 ### ~~ISSUE-023: Backward-Compat Shim Files~~ ✅ RESOLVED
 - **Fixed in**: Phase 1.3 — Deleted `lib/auth.ts` and `lib/api.ts`.
@@ -136,6 +117,6 @@
 |----------|-------|----------|------|
 | 🔴 Critical | 4 | 3 | 1 (rate limiting) |
 | 🟠 High | 5 | 5 | 0 |
-| 🟡 Medium | 7 | 5 | 2 (onupdate bug, CSRF) |
-| 🔵 Low | 11 | 6 | 5 (hardcoded data, dead links) |
-| **Total** | **27** | **19** | **8** |
+| 🟡 Medium | 7 | 6 | 1 (CSRF) |
+| 🔵 Low | 11 | 11 | 0 |
+| **Total** | **27** | **25** | **2** |

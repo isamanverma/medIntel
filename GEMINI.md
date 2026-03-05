@@ -23,18 +23,19 @@ MedIntel is an AI-driven healthcare intelligence ecosystem with a FastAPI backen
   - `api/treatments.py` — Treatment plans + medications (4 routes)
   - `api/reports.py` — Medical report metadata (3 routes)
   - `api/adherence.py` — Medication adherence tracking (3 routes)
+  - `api/admin.py` — Admin stats endpoint (1 route)
   - `deps.py` — Shared auth dependencies (get_current_user, require_patient/doctor/admin)
   - `services/auth_service.py` — Business logic (bcrypt, JWT)
   - `models/` — 9 SQLModel tables (User, PatientProfile, DoctorProfile, Appointment, TreatmentPlan, Medication, MedicalReport, AdherenceLog, AgentInsight)
   - `core/config.py` — Settings from environment variables
   - `db/engine.py` — Async engine + session factory
-  - `tests/` — 30 tests (pytest + httpx + pytest-asyncio)
+  - `tests/` — 35 tests (pytest + httpx + pytest-asyncio)
 
 - **Frontend** (`frontend/`): Next.js App Router
   - `app/(auth)/` — Login/signup pages with role toggle
-  - `app/patient/dashboard/` — Patient portal (placeholder)
-  - `app/doctor/dashboard/` — Doctor portal (placeholder)
-  - `app/admin/dashboard/` — Admin portal (placeholder)
+  - `app/patient/dashboard/` — Patient portal (live API data)
+  - `app/doctor/dashboard/` — Doctor portal (live API data)
+  - `app/admin/dashboard/` — Admin portal (live API data)
   - `app/api/auth/` — BFF proxy routes (login, signup, me, logout)
   - `components/providers/SessionProvider.tsx` — Custom auth context
   - `proxy.ts` — JWT-based route protection
@@ -43,8 +44,8 @@ MedIntel is an AI-driven healthcare intelligence ecosystem with a FastAPI backen
 
 - ✅ Auth flow fully working (signup → login → session → logout)
 - ✅ Database schema defined (9 tables with relationships)
-- ✅ All CRUD APIs implemented (25 endpoints, 30 tests passing)
-- ⚠️ Dashboards have placeholder/mock data (Phase 3)
+- ✅ All CRUD APIs implemented (26 endpoints, 35 tests passing)
+- ✅ All dashboards connected to live API data (Phase 3 complete)
 - ❌ AI/ML intelligence layer not started
 
 ## Running Locally
@@ -79,7 +80,7 @@ cd backend && uv run pytest tests/ -v
 
 | Document | Purpose |
 |----------|---------|
-| [.gemini/TODO.md](.gemini/TODO.md) | 7-phase roadmap (Phases 1-2 complete) |
-| [.gemini/ISSUES.md](.gemini/ISSUES.md) | 27 issues tracked, 19 resolved |
+| [.gemini/TODO.md](.gemini/TODO.md) | 7-phase roadmap (Phases 1-3 complete) |
+| [.gemini/ISSUES.md](.gemini/ISSUES.md) | 27 issues tracked, 25 resolved |
 | [.gemini/KNOWLEDGE.md](.gemini/KNOWLEDGE.md) | Complete project knowledge base |
 | [.gemini/prd.md](.gemini/prd.md) | Product requirements document |

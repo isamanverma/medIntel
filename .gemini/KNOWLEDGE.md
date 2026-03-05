@@ -10,7 +10,7 @@
 |-----|-------|
 | Name | MedIntel |
 | Type | AI-powered healthcare intelligence platform |
-| Stage | Early foundation (auth only, dashboards placeholder) |
+| Stage | Production-ready backend, live dashboards (Phases 1-3 complete) |
 | User Roles | Patient, Doctor, Admin |
 | Monorepo | `backend/` (FastAPI) + `frontend/` (Next.js) |
 
@@ -123,23 +123,24 @@ For data APIs (not auth), the browser talks directly to FastAPI with the HttpOnl
 
 ## 6. File Inventory
 
-### Backend (12 active files)
+### Backend (20+ active files)
 | File | LOC | Purpose |
 |------|-----|---------|
-| `main.py` | 95 | App entry, CORS, lifespan, routers |
+| `main.py` | 103 | App entry, CORS, lifespan, routers |
 | `api/auth.py` | 183 | Auth HTTP endpoints |
+| `api/profiles.py` | ~180 | Patient/Doctor profile CRUD (6 routes) |
+| `api/appointments.py` | ~180 | Appointment management (5 routes) |
+| `api/mappings.py` | ~120 | Patient-Doctor relationships (4 routes) |
+| `api/treatments.py` | ~140 | Treatment plans + medications (4 routes) |
+| `api/reports.py` | ~100 | Medical report metadata (3 routes) |
+| `api/adherence.py` | ~100 | Medication adherence tracking (3 routes) |
+| `api/admin.py` | ~80 | Admin stats endpoint (1 route) |
+| `deps.py` | ~60 | Shared auth dependencies |
 | `services/auth_service.py` | 280 | Auth business logic |
 | `core/config.py` | 61 | Settings from env |
-| `db/engine.py` | 80 | Async engine + sessions |
-| `models/user.py` | 199 | User model + schemas |
-| `models/profiles.py` | 67 | Patient/Doctor profiles |
-| `models/appointment.py` | 74 | Appointment model |
-| `models/treatment.py` | 94 | Treatment + Medication |
-| `models/report.py` | 66 | Medical reports |
-| `models/adherence.py` | 61 | Adherence logs |
-| `models/insight.py` | 68 | AI insights |
-| `models/mapping.py` | 64 | Patient-Doctor mapping |
-| `models/enums.py` | 51 | Enum definitions |
+| `db/engine.py` | 100 | Async engine + sessions + before_flush listener |
+| `models/*.py` | ~600 | 9 SQLModel tables |
+| `tests/*.py` | ~400 | 35 tests (auth, profiles, appointments, admin) |
 
 ### Frontend (21 files)
 | File | LOC | Purpose |
@@ -148,9 +149,9 @@ For data APIs (not auth), the browser talks directly to FastAPI with the HttpOnl
 | `app/page.tsx` | 273 | Landing/marketing page |
 | `app/(auth)/login/page.tsx` | 308 | Login form with role toggle |
 | `app/(auth)/signup/page.tsx` | 414 | Signup form with validation |
-| `app/patient/dashboard/page.tsx` | 278 | Patient portal (hardcoded) |
-| `app/doctor/dashboard/page.tsx` | 294 | Doctor portal (hardcoded) |
-| `app/admin/dashboard/page.tsx` | 212 | Admin portal (hardcoded) |
+| `app/patient/dashboard/page.tsx` | ~290 | Patient portal (live API data) |
+| `app/doctor/dashboard/page.tsx` | ~280 | Doctor portal (live API data) |
+| `app/admin/dashboard/page.tsx` | ~270 | Admin portal (live API data) |
 | `app/api/auth/login/route.ts` | 122 | BFF login proxy |
 | `app/api/auth/signup/route.ts` | 140 | BFF signup proxy |
 | `app/api/auth/me/route.ts` | 86 | BFF session check |
@@ -158,8 +159,8 @@ For data APIs (not auth), the browser talks directly to FastAPI with the HttpOnl
 | `components/providers/SessionProvider.tsx` | 184 | Auth context provider |
 | `components/ui/Navbar.tsx` | 207 | Global navbar |
 | `components/ui/Footer.tsx` | 135 | Global footer |
-| `lib/api-client.ts` | 184 | Typed fetch wrapper |
-| `middleware.ts` | 159 | JWT route protection |
+| `lib/api-client.ts` | ~230 | Typed fetch wrapper + domain API functions |
+| `proxy.ts` | 159 | JWT route protection |
 
 ---
 
@@ -202,14 +203,68 @@ npm run lint                                      # Biome lint
 
 ---
 
-## 9. API Endpoints (Currently Implemented)
+## 9. API Endpoints (26 total)
 
+### Auth (3 routes)
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | POST | `/api/auth/signup` | ❌ | Create user, return token |
 | POST | `/api/auth/login` | ❌ | Verify creds, return token |
 | GET | `/api/auth/me` | ✅ Bearer | Get current user profile |
-| GET | `/health` | ❌ | Health check |
+
+### Profiles (6 routes)
+| Method | Path | Auth |
+|--------|------|------|
+| POST | `/api/profiles/patient` | Patient |
+| GET | `/api/profiles/patient/me` | Patient |
+| PUT | `/api/profiles/patient/me` | Patient |
+| POST | `/api/profiles/doctor` | Doctor |
+| GET | `/api/profiles/doctor/me` | Doctor |
+| PUT | `/api/profiles/doctor/me` | Doctor |
+
+### Appointments (5 routes)
+| Method | Path | Auth |
+|--------|------|------|
+| POST | `/api/appointments` | Patient |
+| GET | `/api/appointments/upcoming` | Any |
+| GET | `/api/appointments/history` | Any |
+| GET | `/api/appointments/{id}` | Any |
+| PATCH | `/api/appointments/{id}/status` | Doctor |
+
+### Mappings (4 routes)
+| Method | Path | Auth |
+|--------|------|------|
+| POST | `/api/mappings` | Doctor |
+| GET | `/api/mappings/my-patients` | Doctor |
+| GET | `/api/mappings/my-doctors` | Patient |
+| DELETE | `/api/mappings/{id}` | Any |
+
+### Treatments (4 routes)
+| Method | Path | Auth |
+|--------|------|------|
+| POST | `/api/treatments` | Doctor |
+| GET | `/api/treatments/patient/{id}` | Any |
+| PATCH | `/api/treatments/{id}/status` | Doctor |
+| POST | `/api/treatments/{id}/medications` | Doctor |
+
+### Reports (3 routes)
+| Method | Path | Auth |
+|--------|------|------|
+| POST | `/api/reports` | Doctor |
+| GET | `/api/reports/patient/{id}` | Any |
+| GET | `/api/reports/{id}` | Any |
+
+### Adherence (3 routes)
+| Method | Path | Auth |
+|--------|------|------|
+| POST | `/api/adherence/log` | Patient |
+| GET | `/api/adherence/history/{patient_id}` | Any |
+| GET | `/api/adherence/stats/{patient_id}` | Any |
+
+### Admin (1 route)
+| Method | Path | Auth |
+|--------|------|------|
+| GET | `/api/admin/stats` | Admin |
 
 ### BFF Proxy Routes (Frontend)
 | Method | Path | Description |

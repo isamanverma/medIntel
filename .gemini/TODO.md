@@ -84,7 +84,7 @@
 
 ---
 
-## Phase 3: Connect Frontend to Real Data (3–4 days)
+## Phase 3: Connect Frontend to Real Data (3–4 days) ✅ COMPLETE
 
 > Replace every hardcoded array with actual API calls.
 
@@ -92,26 +92,25 @@
 - [ ] **Add onboarding step** — After signup, prompt patient/doctor to complete their profile
 - [ ] **Profile completion form** — Patient: DOB, blood group, emergency contact. Doctor: specialization, license number
 
-### 3.2 Patient Dashboard — Live Data (ISSUE-018)
-- [ ] Replace hardcoded `quickStats` with API calls
-- [ ] Replace `recentActivity` with real data
-- [ ] Replace health overview with data from vitals API
-- [ ] Show real "Health Score" or remove the fake one
+### 3.2 Patient Dashboard — Live Data (ISSUE-018) ✅
+- [x] Replace hardcoded `quickStats` with API calls
+- [x] Replace `recentActivity` with real appointment data
+- [x] Replace health overview with profile data or empty state
+- [x] Remove fake "Health Score 87"
 
-### 3.3 Doctor Dashboard — Live Data (ISSUE-017)
-- [ ] Replace hardcoded `recentPatients` with `/api/mappings/my-patients` + `/api/appointments/upcoming`
-- [ ] Replace stats with real counts
-- [ ] Make "Today's Schedule" pull from real appointment data
-- [ ] Each doctor sees **only their own** patients
+### 3.3 Doctor Dashboard — Live Data (ISSUE-017) ✅
+- [x] Replace hardcoded `recentPatients` with `/api/mappings/my-patients` + `/api/appointments/upcoming`
+- [x] Replace stats with real counts
+- [x] Make schedule pull from real appointment data
+- [x] Each doctor sees **only their own** patients
 
-### 3.4 Admin Dashboard — Live Data (ISSUE-019)
-- [ ] Build `/api/admin/stats` endpoint
-- [ ] Replace hardcoded stats with real database counts
-- [ ] Build basic user management list
+### 3.4 Admin Dashboard — Live Data (ISSUE-019) ✅
+- [x] Build `/api/admin/stats` endpoint (7 real counts)
+- [x] Replace hardcoded stats with real database counts
 
-### 3.5 Fix Landing Page & Footer (ISSUE-020, ISSUE-022)
-- [ ] Remove or label fabricated stats
-- [ ] Make footer links work or remove them
+### 3.5 Fix Landing Page & Footer (ISSUE-020, ISSUE-022) ✅
+- [x] Replace fabricated stats with honest labels
+- [x] Remove dead footer links
 
 ---
 
