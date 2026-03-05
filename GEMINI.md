@@ -66,4 +66,9 @@ cd backend && uv run alembic upgrade head
 
 ## Capstone Roadmap
 
-See [.gemini/TODO.md](.gemini/TODO.md) for the full phased TODO — 7 phases from cleanup to AI features, all zero-cost.
+| Document | Purpose |
+|----------|---------|
+| [.gemini/TODO.md](.gemini/TODO.md) | 7-phase roadmap from cleanup to AI features |
+| [.gemini/ISSUES.md](.gemini/ISSUES.md) | 25 known issues ranked by severity |
+| [.gemini/KNOWLEDGE.md](.gemini/KNOWLEDGE.md) | Complete project knowledge base |
+| [.gemini/prd.md](.gemini/prd.md) | Product requirements document |
