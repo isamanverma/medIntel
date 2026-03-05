@@ -205,7 +205,7 @@ npm run lint                                      # Biome lint
 
 ---
 
-## 9. API Endpoints (26 total)
+## 9. API Endpoints (37 total)
 
 ### Auth (3 routes)
 | Method | Path | Auth | Description |
@@ -263,11 +263,30 @@ npm run lint                                      # Biome lint
 | GET | `/api/adherence/history/{patient_id}` | Any |
 | GET | `/api/adherence/stats/{patient_id}` | Any |
 
-### Admin (2 routes)
+### Admin (5 routes)
 | Method | Path | Auth |
 |--------|------|------|
 | GET | `/api/admin/stats` | Admin |
 | GET | `/api/admin/users` | Admin |
+| POST | `/api/admin/assignments` | Admin |
+| GET | `/api/admin/assignments` | Admin |
+| DELETE | `/api/admin/assignments/{id}` | Admin |
+
+### Referrals (4 routes)
+| Method | Path | Auth |
+|--------|------|------|
+| POST | `/api/referrals` | Doctor |
+| GET | `/api/referrals/sent` | Doctor |
+| GET | `/api/referrals/received` | Doctor |
+| PATCH | `/api/referrals/{id}` | Doctor |
+
+### Care Teams (4 routes)
+| Method | Path | Auth |
+|--------|------|------|
+| POST | `/api/care-teams` | Doctor |
+| POST | `/api/care-teams/{id}/members` | Doctor |
+| GET | `/api/care-teams/patient/{id}` | Any |
+| GET | `/api/care-teams/doctor/me` | Doctor |
 
 ### BFF Proxy Routes (Frontend)
 | Method | Path | Description |

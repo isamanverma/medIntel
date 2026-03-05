@@ -143,38 +143,38 @@
 > Clinically comprehensive patient data fields, admin-driven assignments, and multi-doctor care.
 
 ### 5.1 Comprehensive Patient Profile Fields
-- [ ] **Medical history** — Allergies (text array), chronic conditions (text array), past surgeries
+- [x] **Medical history** — Allergies (text array), chronic conditions (text array), past surgeries
 - [ ] **Current medications** — Name, dosage, frequency (separate from treatment plan meds)
-- [ ] **Vitals tracking** — Height (cm), weight (kg), BMI (auto-calculated), blood pressure
-- [ ] **Insurance info** — Provider name, policy number, group number
-- [ ] **Address** — Street, city, state, zip code, country
-- [ ] **Demographics** — Gender (select), phone number, preferred language
-- [ ] **Backend**: Extend `PatientProfile` model + Alembic migration
+- [x] **Vitals tracking** — Height (cm), weight (kg), BMI (auto-calculated), blood pressure
+- [x] **Insurance info** — Provider name, policy number, group number
+- [x] **Address** — Street, city, state, zip code, country
+- [x] **Demographics** — Gender (select), phone number, preferred language
+- [x] **Backend**: Extend `PatientProfile` model + Alembic migration
 - [ ] **Frontend**: Multi-section patient profile form (Personal → Medical → Insurance → Contact)
 
 ### 5.2 Admin Patient-Doctor Assignment
-- [ ] **Backend**: `POST /api/admin/assignments` — Admin assigns a patient to a doctor (creates mapping)
-- [ ] **Backend**: `GET /api/admin/assignments` — List all patient-doctor assignments
-- [ ] **Backend**: `DELETE /api/admin/assignments/{id}` — Admin removes an assignment
+- [x] **Backend**: `POST /api/admin/assignments` — Admin assigns a patient to a doctor (creates mapping)
+- [x] **Backend**: `GET /api/admin/assignments` — List all patient-doctor assignments
+- [x] **Backend**: `DELETE /api/admin/assignments/{id}` — Admin removes an assignment
 - [ ] **Frontend**: Admin dashboard — patient-doctor assignment form (search patient + select doctor)
 - [ ] **Frontend**: Assignment list table with bulk actions
 
 ### 5.3 Doctor Referral System
-- [ ] **Backend model**: `Referral` table — `referring_doctor_id`, `referred_doctor_id`, `patient_id`, `reason`, `status` (PENDING/ACCEPTED/DECLINED), `notes`
-- [ ] **Backend**: `POST /api/referrals` — Doctor creates a referral to another doctor
-- [ ] **Backend**: `GET /api/referrals/sent` — Doctor's outgoing referrals
-- [ ] **Backend**: `GET /api/referrals/received` — Doctor's incoming referrals
-- [ ] **Backend**: `PATCH /api/referrals/{id}` — Accept/decline a referral
+- [x] **Backend model**: `Referral` table — `referring_doctor_id`, `referred_doctor_id`, `patient_id`, `reason`, `status` (PENDING/ACCEPTED/DECLINED), `notes`
+- [x] **Backend**: `POST /api/referrals` — Doctor creates a referral to another doctor
+- [x] **Backend**: `GET /api/referrals/sent` — Doctor's outgoing referrals
+- [x] **Backend**: `GET /api/referrals/received` — Doctor's incoming referrals
+- [x] **Backend**: `PATCH /api/referrals/{id}` — Accept/decline a referral
 - [ ] **Frontend**: Doctor dashboard — "Refer Patient" form (select patient, select doctor, reason)
 - [ ] **Frontend**: Referral inbox/outbox views with accept/decline actions
 
 ### 5.4 Multi-Doctor Collaboration (Care Team)
-- [ ] **Backend model**: `CareTeam` table — `patient_id`, `name` (e.g. "Cardiac Care Team")
-- [ ] **Backend model**: `CareTeamMember` — `care_team_id`, `doctor_id`, `role` (PRIMARY/CONSULTANT/SPECIALIST)
-- [ ] **Backend**: `POST /api/care-teams` — Create a care team for a patient
-- [ ] **Backend**: `POST /api/care-teams/{id}/members` — Add a doctor to the care team
-- [ ] **Backend**: `GET /api/care-teams/patient/{id}` — Get all care teams for a patient
-- [ ] **Backend**: `GET /api/care-teams/doctor/me` — Get care teams a doctor belongs to
+- [x] **Backend model**: `CareTeam` table — `patient_id`, `name` (e.g. "Cardiac Care Team")
+- [x] **Backend model**: `CareTeamMember` — `care_team_id`, `doctor_id`, `role` (PRIMARY/CONSULTANT/SPECIALIST)
+- [x] **Backend**: `POST /api/care-teams` — Create a care team for a patient
+- [x] **Backend**: `POST /api/care-teams/{id}/members` — Add a doctor to the care team
+- [x] **Backend**: `GET /api/care-teams/patient/{id}` — Get all care teams for a patient
+- [x] **Backend**: `GET /api/care-teams/doctor/me` — Get care teams a doctor belongs to
 - [ ] **Frontend**: Patient card showing care team members
 - [ ] **Frontend**: Doctor dashboard — care team management view
 

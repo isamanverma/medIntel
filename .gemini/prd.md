@@ -22,18 +22,18 @@ MedIntel is a production-grade AI-driven healthcare intelligence platform for a 
 13. **Live Interactive Dashboards** — Profile onboarding, appointment booking, appointment management, admin user table
 14. **Rate Limiting** — slowapi on auth endpoints (3/min signup, 5/min login)
 15. **Reusable UI Components** — Modal, Toast notification system
-
-### Planned (Phase 5)
 16. **Comprehensive Patient Data** — Allergies, chronic conditions, vitals, insurance, demographics
 17. **Admin Patient-Doctor Assignment** — Admin assigns patients to doctors
 18. **Doctor Referral System** — Refer patients to other doctors with reason & status tracking
 19. **Multi-Doctor Care Teams** — Multiple doctors collaborating on a single patient case
+
+### Planned (Phase 5 Frontend & Polish)
 20. **CSRF Protection** — Double-submit cookie pattern
 
 ### Planned (Phase 6)
 21. **AI Agent Insights** — Report analysis, risk detection, triage recommendations (Google Gemini API)
 
-## Database Schema (Current: 9 Tables, Planned: 12+)
+## Database Schema (Current: 12 Tables, Planned: 13+)
 
 ### Current Tables
 - `users` — Core user table with role, auth provider, active status
@@ -46,8 +46,6 @@ MedIntel is a production-grade AI-driven healthcare intelligence platform for a 
 - `adherence_logs` — Medication tracking (FK → medications, patient_profiles)
 - `medical_reports` — Uploaded documents (FK → patient_profiles, users)
 - `agent_insights` — AI-generated clinical insights
-
-### Planned Tables (Phase 5)
 - `referrals` — Doctor-to-doctor referrals with status (PENDING/ACCEPTED/DECLINED)
 - `care_teams` — Named care teams per patient
 - `care_team_members` — Doctors in a care team with roles (PRIMARY/CONSULTANT/SPECIALIST)

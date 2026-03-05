@@ -23,13 +23,15 @@ MedIntel is an AI-driven healthcare intelligence ecosystem with a FastAPI backen
   - `api/treatments.py` — Treatment plans + medications (4 routes)
   - `api/reports.py` — Medical report metadata (3 routes)
   - `api/adherence.py` — Medication adherence tracking (3 routes)
-  - `api/admin.py` — Admin stats + user list (2 routes)
+  - `api/admin.py` — Admin stats, user list, patient assignments (5 routes)
+  - `api/referrals.py` — Doctor-to-doctor referrals (4 routes)
+  - `api/care_teams.py` — Multi-doctor care teams (4 routes)
   - `deps.py` — Shared auth dependencies (get_current_user, require_patient/doctor/admin)
   - `services/auth_service.py` — Business logic (bcrypt, JWT)
-  - `models/` — 9 SQLModel tables (User, PatientProfile, DoctorProfile, Appointment, TreatmentPlan, Medication, MedicalReport, AdherenceLog, AgentInsight)
+  - `models/` — 12 SQLModel tables (User, PatientProfile, DoctorProfile, Appointment, TreatmentPlan, Medication, MedicalReport, AdherenceLog, AgentInsight, Referral, CareTeam, CareTeamMember)
   - `core/config.py` — Settings from environment variables (incl. TESTING, RATE_LIMIT_ENABLED)
   - `db/engine.py` — Async engine + session factory + before_flush listener
-  - `tests/` — 35 tests (pytest + httpx + pytest-asyncio)
+  - `tests/` — 51 tests (pytest + httpx + pytest-asyncio)
 
 - **Frontend** (`frontend/`): Next.js App Router
   - `app/(auth)/` — Login/signup pages with role toggle
@@ -45,12 +47,13 @@ MedIntel is an AI-driven healthcare intelligence ecosystem with a FastAPI backen
 ## Current Status
 
 - ✅ Auth flow fully working (signup → login → session → logout)
-- ✅ Database schema defined (9 tables with relationships)
-- ✅ All CRUD APIs implemented (28 endpoints, 35 tests passing)
+- ✅ Database schema defined (12 tables with relationships)
+- ✅ All CRUD APIs implemented (37 endpoints, 51 tests passing)
 - ✅ All dashboards interactive with live API data (Phases 3-4 complete)
 - ✅ Rate limiting on auth endpoints (ISSUE-003 fixed)
 - ✅ Profile onboarding forms + appointment booking + appointment management
 - ✅ Admin user management table
+- ✅ Phase 5 Backend: Comprehensive patient data, Referrals, Care Teams, Admin Assignments
 - ❌ AI/ML intelligence layer not started (Phase 6)
 
 ## Running Locally
