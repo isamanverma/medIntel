@@ -78,3 +78,39 @@ async def get_admin_stats(
         total_reports=total_reports,
         total_treatment_plans=total_treatment_plans,
     )
+
+
+# ── User List ─────────────────────────────────────────────────────
+
+class AdminUserResponse(BaseModel):
+    id: str
+    email: str
+    name: str
+    role: str
+    is_active: bool
+    created_at: str
+
+    model_config = {"from_attributes": True}
+
+
+@router.get("/users", response_model=list[AdminUserResponse])
+async def get_admin_users(
+    session: AsyncSession = Depends(get_session),
+    _admin: User = Depends(require_admin),
+) -> list[AdminUserResponse]:
+    """Return all users.  Admin only."""
+    result = await session.execute(
+        select(User).order_by(User.created_at.desc())
+    )
+    users = result.scalars().all()
+    return [
+        AdminUserResponse(
+            id=str(u.id),
+            email=u.email,
+            name=u.name,
+            role=u.role.value if hasattr(u.role, "value") else str(u.role),
+            is_active=u.is_active,
+            created_at=str(u.created_at),
+        )
+        for u in users
+    ]

@@ -167,7 +167,7 @@
 
 ### 6.1 Local AI Options (Zero Cost)
 - [ ] **Option A: Ollama + local LLM** — Llama 3.1 8B, Mistral 7B. Free, runs locally
-- [ ] **Option B: Google Gemini API free tier** — 15 RPM free, sufficient for demo
+- [ ] **Option B: Google Gemini API free tier** — 15 RPM free, sufficient for demo [USE THIS ONE]
 - [ ] **Option C: Hugging Face Inference API** — Free tier for summarization
 
 ### 6.2 Report Analysis (AgentInsight)

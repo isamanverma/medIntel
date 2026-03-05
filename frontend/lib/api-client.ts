@@ -223,3 +223,144 @@ export async function getAdherenceStats(patientId: string): Promise<AdherenceSta
 export async function getAdminStats(): Promise<AdminStats> {
   return request<AdminStats>("/api/admin/stats");
 }
+
+
+// ---------------------------------------------------------------------------
+//  Mutation API — POST / PATCH / DELETE (called from forms)
+// ---------------------------------------------------------------------------
+
+// — Create Profiles ———————————————————————————————
+
+export interface CreatePatientProfileData {
+  first_name: string;
+  last_name: string;
+  date_of_birth: string; // YYYY-MM-DD
+  blood_group: string;
+  emergency_contact: string;
+}
+
+export async function createPatientProfile(
+  data: CreatePatientProfileData
+): Promise<PatientProfile> {
+  return request<PatientProfile>("/api/profiles/patient", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export interface CreateDoctorProfileData {
+  first_name: string;
+  last_name: string;
+  specialization: string;
+  license_number: string;
+}
+
+export async function createDoctorProfile(
+  data: CreateDoctorProfileData
+): Promise<DoctorProfile> {
+  return request<DoctorProfile>("/api/profiles/doctor", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+// — Create Appointments ——————————————————————————
+
+export interface CreateAppointmentData {
+  patient_id: string;
+  doctor_id: string;
+  scheduled_time: string; // ISO datetime
+  meeting_notes?: string;
+}
+
+export async function createAppointment(
+  data: CreateAppointmentData
+): Promise<Appointment> {
+  return request<Appointment>("/api/appointments", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateAppointmentStatus(
+  appointmentId: string,
+  status: string,
+  meeting_notes?: string
+): Promise<Appointment> {
+  return request<Appointment>(`/api/appointments/${appointmentId}/status`, {
+    method: "PATCH",
+    body: JSON.stringify({ status, meeting_notes }),
+  });
+}
+
+// — Create Mappings ——————————————————————————————
+
+export interface CreateMappingData {
+  patient_id: string;
+}
+
+export async function createMapping(
+  data: CreateMappingData
+): Promise<{ id: string }> {
+  return request<{ id: string }>("/api/mappings", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteMapping(mappingId: string): Promise<void> {
+  await request<void>(`/api/mappings/${mappingId}`, {
+    method: "DELETE",
+  });
+}
+
+// — Treatment Plans ——————————————————————————————
+
+export interface CreateTreatmentPlanData {
+  patient_id: string;
+  title: string;
+  start_date: string; // YYYY-MM-DD
+  end_date?: string;
+}
+
+export interface TreatmentPlan {
+  id: string;
+  patient_id: string;
+  doctor_id: string;
+  title: string;
+  start_date: string;
+  end_date: string | null;
+  status: string;
+  created_at: string;
+}
+
+export async function createTreatmentPlan(
+  data: CreateTreatmentPlanData
+): Promise<TreatmentPlan> {
+  return request<TreatmentPlan>("/api/treatment-plans", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function getPatientTreatmentPlans(
+  patientId: string
+): Promise<TreatmentPlan[]> {
+  return request<TreatmentPlan[]>(`/api/treatment-plans/patient/${patientId}`);
+}
+
+// — Admin: User List —————————————————————————————
+
+export interface AdminUser {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+export async function getAdminUsers(): Promise<AdminUser[]> {
+  return request<AdminUser[]>("/api/admin/users");
+}
+

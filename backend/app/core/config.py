@@ -28,6 +28,10 @@ class Settings:
     # ── Frontend origin (used by CORS and cookie domain logic) ─────
     FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
+    # ── Rate Limiting / Testing ───────────────────────────────────
+    TESTING: bool = os.getenv("TESTING", "").lower() in ("1", "true", "yes")
+    RATE_LIMIT_ENABLED: bool = os.getenv("RATE_LIMIT_ENABLED", "true").lower() not in ("0", "false", "no")
+
     def __init__(self) -> None:
         if not self.DATABASE_URL:
             raise ValueError(

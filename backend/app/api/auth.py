@@ -13,9 +13,12 @@ Endpoints:
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.db.engine import get_session
 from app.deps import get_current_user as get_current_user_dep
 from app.models.user import User, UserCreate, UserPublic, TokenResponse
@@ -27,6 +30,10 @@ from app.services.auth_service import (
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+limiter = Limiter(
+    key_func=get_remote_address,
+    enabled=settings.RATE_LIMIT_ENABLED and not settings.TESTING,
+)
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -60,9 +67,12 @@ class ErrorResponse(BaseModel):
     responses={
         409: {"model": ErrorResponse, "description": "Email already taken"},
         422: {"model": ErrorResponse, "description": "Validation error"},
+        429: {"model": ErrorResponse, "description": "Rate limit exceeded"},
     },
 )
+@limiter.limit("3/minute")
 async def signup(
+    request: Request,
     body: UserCreate,
     session: AsyncSession = Depends(get_session),
 ) -> TokenResponse:
@@ -94,9 +104,12 @@ async def signup(
     response_model=TokenResponse,
     responses={
         401: {"model": ErrorResponse, "description": "Bad credentials"},
+        429: {"model": ErrorResponse, "description": "Rate limit exceeded"},
     },
 )
+@limiter.limit("5/minute")
 async def login(
+    request: Request,
     body: LoginRequest,
     session: AsyncSession = Depends(get_session),
 ) -> TokenResponse:
