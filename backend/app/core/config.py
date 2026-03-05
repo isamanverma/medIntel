@@ -1,7 +1,13 @@
+import logging
 import os
 from dotenv import load_dotenv
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
+
+
+_JWT_SECRET_DEFAULT = "medintel-jwt-secret-change-in-production"
 
 
 class Settings:
@@ -12,10 +18,7 @@ class Settings:
     DATABASE_URL: str = os.getenv("DATABASE_URL", "")
 
     # ── JWT Configuration ──────────────────────────────────────────
-    JWT_SECRET_KEY: str = os.getenv(
-        "JWT_SECRET_KEY",
-        "medintel-jwt-secret-change-in-production",
-    )
+    JWT_SECRET_KEY: str = os.getenv("JWT_SECRET_KEY", _JWT_SECRET_DEFAULT)
     JWT_ALGORITHM: str = os.getenv("JWT_ALGORITHM", "HS256")
     # Access token lifetime in minutes (default: 30 minutes)
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(
@@ -34,6 +37,12 @@ class Settings:
                 "  Project Settings -> Database -> Connection string -> URI\n\n"
                 'Example: DATABASE_URL="postgresql://postgres.[project-ref]:[password]'
                 '@aws-0-[region].pooler.supabase.com:6543/postgres"'
+            )
+
+        if self.JWT_SECRET_KEY == _JWT_SECRET_DEFAULT:
+            logger.warning(
+                "JWT_SECRET_KEY is using the default value! "
+                "Set a strong random secret in .env before deploying."
             )
 
     @property

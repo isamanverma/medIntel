@@ -8,6 +8,7 @@ an `AsyncSession` scoped to the request lifecycle.
 
 from __future__ import annotations
 
+import os
 from collections.abc import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import (
@@ -26,7 +27,7 @@ from app.core.config import settings
 
 async_engine: AsyncEngine = create_async_engine(
     settings.async_database_url,
-    echo=True,
+    echo=os.getenv("SQL_ECHO", "false").lower() == "true",
     future=True,
     # Disable asyncpg's prepared-statement caching so that connections
     # work correctly through pgbouncer / Supabase's connection pooler,

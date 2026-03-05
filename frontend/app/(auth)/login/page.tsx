@@ -154,11 +154,10 @@ function LoginForm() {
                     setRole(r);
                     setError("");
                   }}
-                  className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-2.5 text-sm font-medium transition-all ${
-                    role === r
+                  className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-2.5 text-sm font-medium transition-all ${role === r
                       ? "bg-card shadow-sm " + config.color
                       : "text-muted-foreground hover:text-foreground"
-                  }`}
+                    }`}
                 >
                   <Icon className="h-4 w-4" />
                   <span className="hidden sm:inline">{config.label}</span>
@@ -253,18 +252,6 @@ function LoginForm() {
               )}
             </button>
           </form>
-
-          {/* Admin hint */}
-          {role === "admin" && (
-            <div className="mt-4 rounded-lg border border-border bg-muted/50 px-3 py-2.5">
-              <p className="text-xs text-muted-foreground text-center">
-                <span className="font-medium text-foreground">
-                  Demo credentials:
-                </span>{" "}
-                admin@medintel.com / admin123
-              </p>
-            </div>
-          )}
 
           {/* Signup link */}
           <p className="mt-6 text-center text-sm text-muted-foreground">

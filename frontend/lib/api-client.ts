@@ -31,47 +31,25 @@ const BACKEND_URL: string =
   "http://localhost:8000";
 
 // ---------------------------------------------------------------------------
-//  Shared TypeScript interfaces (mirror FastAPI Pydantic models)
+//  Re-export shared types for convenience
 // ---------------------------------------------------------------------------
 
-export type UserRole = "PATIENT" | "DOCTOR" | "ADMIN";
+export type {
+  UserRole,
+  UserPublic,
+  TokenResponse,
+  ApiError,
+  SignupRequest,
+  LoginRequest,
+} from "@/lib/types";
 
-/** Matches `UserPublic` on the backend. */
-export interface UserPublic {
-  id: string;
-  email: string;
-  name: string;
-  role: UserRole;
-  image: string | null;
-  auth_provider: string;
-  created_at: string;
-}
-
-/** Matches `TokenResponse` on the backend. */
-export interface TokenResponse {
-  access_token: string;
-  token_type: string;
-  user: UserPublic;
-}
-
-/** Shape of validation / business-logic errors returned by FastAPI. */
-export interface ApiError {
-  detail: string;
-}
-
-/** Signup request body — matches `UserCreate` on the backend. */
-export interface SignupRequest {
-  name: string;
-  email: string;
-  password: string;
-  role: UserRole;
-}
-
-/** Login request body — matches `LoginRequest` on the backend. */
-export interface LoginRequest {
-  email: string;
-  password: string;
-}
+import type {
+  UserPublic,
+  ApiError,
+  TokenResponse,
+  SignupRequest,
+  LoginRequest,
+} from "@/lib/types";
 
 // ---------------------------------------------------------------------------
 //  Custom error class

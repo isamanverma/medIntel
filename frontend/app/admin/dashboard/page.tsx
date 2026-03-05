@@ -23,7 +23,15 @@ export default function AdminDashboard() {
     if (status === "unauthenticated") {
       router.push("/login?role=admin");
     }
-  }, [status, router]);
+    if (
+      status === "authenticated" &&
+      session?.user &&
+      session.user.role !== "ADMIN"
+    ) {
+      const role = session.user.role.toLowerCase();
+      router.push(`/${role}/dashboard`);
+    }
+  }, [status, session, router]);
 
   if (status === "loading") {
     return (
@@ -36,7 +44,7 @@ export default function AdminDashboard() {
     );
   }
 
-  if (!session?.user) {
+  if (!session?.user || session.user.role !== "ADMIN") {
     return null;
   }
 

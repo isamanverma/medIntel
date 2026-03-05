@@ -9,27 +9,15 @@ import {
   useState,
 } from "react";
 
-// ---------------------------------------------------------------------------
-//  Types — mirror the backend's UserPublic Pydantic model
-// ---------------------------------------------------------------------------
+import type {
+  UserPublic,
+  AuthSession,
+  SessionStatus,
+} from "@/lib/types";
 
-export type UserRole = "PATIENT" | "DOCTOR" | "ADMIN";
-
-export interface SessionUser {
-  id: string;
-  email: string;
-  name: string;
-  role: UserRole;
-  image: string | null;
-  auth_provider: string;
-  created_at: string;
-}
-
-export type SessionStatus = "loading" | "authenticated" | "unauthenticated";
-
-export interface AuthSession {
-  user: SessionUser;
-}
+// Re-export types so existing consumers of SessionProvider types still work
+export type { AuthSession, SessionStatus } from "@/lib/types";
+export type { UserPublic as SessionUser, UserRole } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
 //  Context value
@@ -133,7 +121,7 @@ export default function SessionProvider({ children }: AuthProviderProps) {
       });
 
       if (res.ok) {
-        const user: SessionUser = await res.json();
+        const user: UserPublic = await res.json();
         setSession({ user });
         setStatus("authenticated");
       } else {
