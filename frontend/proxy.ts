@@ -1,5 +1,5 @@
 /**
- * Next.js Edge Middleware — cookie-based route protection.
+ * Next.js Edge Proxy — cookie-based route protection.
  *
  * This replaces the previous NextAuth-based middleware.  Instead of
  * relying on a NextAuth session, we read the `access_token` HttpOnly
@@ -93,9 +93,9 @@ const PROTECTED_ROUTES = [
   { path: "/admin/dashboard", role: "ADMIN" },
 ];
 
-// ─── Middleware ──────────────────────────────────────────────────
+// ─── Proxy ───────────────────────────────────────────────────────
 
-export default function middleware(request: NextRequest) {
+export default function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // ── Read and decode the access_token cookie ────────────────────
