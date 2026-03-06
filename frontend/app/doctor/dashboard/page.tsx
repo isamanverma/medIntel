@@ -432,7 +432,7 @@ export default function DoctorDashboard() {
             ) : (
               <div className="space-y-2">
                 {patients.map((p) => (
-                  <div key={p.id} className="flex items-center gap-3 rounded-lg border border-border p-3 hover:bg-muted/50 transition-colors">
+                  <div key={p.profile_id} className="flex items-center gap-3 rounded-lg border border-border p-3 hover:bg-muted/50 transition-colors">
                     <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary font-semibold text-xs">
                       {p.first_name?.[0]}{p.last_name?.[0]}
                     </div>
