@@ -58,7 +58,8 @@ MedIntel is an AI-driven healthcare intelligence ecosystem with a FastAPI backen
 - ✅ Multi-section tabbed patient profile
 - ✅ Secure immutable chat system with admin soft-delete
 - ✅ Admin user controls (role change, activate/deactivate, hard delete)
-- ✅ All 31 issues resolved (ISSUE-001 through ISSUE-031)
+- ✅ 31 of 36 issues resolved (ISSUE-001 through ISSUE-031)
+- ❌ 5 open issues for Phase 5c (doctor-patient UX, discovery, appointment booking)
 - ❌ AI/ML intelligence layer not started (Phase 6)
 
 ## Running Locally
@@ -93,7 +94,7 @@ cd backend && TESTING=1 uv run pytest tests/ -v
 
 | Document | Purpose |
 |----------|---------|
-| [.gemini/TODO.md](.gemini/TODO.md) | 7-phase roadmap (Phases 1–5 complete) |
-| [.gemini/ISSUES.md](.gemini/ISSUES.md) | 27 issues tracked, 27 resolved |
+| [.gemini/TODO.md](.gemini/TODO.md) | 8-phase roadmap (Phases 1–5b complete) |
+| [.gemini/ISSUES.md](.gemini/ISSUES.md) | 36 issues tracked, 31 resolved, 5 open |
 | [.gemini/KNOWLEDGE.md](.gemini/KNOWLEDGE.md) | Complete project knowledge base |
 | [.gemini/prd.md](.gemini/prd.md) | Product requirements document |

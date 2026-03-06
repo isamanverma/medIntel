@@ -121,12 +121,49 @@
 
 ---
 
+## New Issues (Phase 5c — UX & Workflow)
+
+### ISSUE-032: Patient DOB Shows "Invalid Date" in Doctor Panel 🟡
+- **Problem**: In the doctor dashboard's patient list, the patient's date of birth displays as "Invalid Date" because the `MappingPatient` response doesn't include `date_of_birth`.
+- **Impact**: Doctor sees broken data for connected patients
+- **Fix**: Either include `date_of_birth` in the `PatientListItem` backend response, or remove the DOB display from the doctor's patient card
+- **TODO Phase**: Phase 5c
+
+### ISSUE-033: Patient Cannot Book Appointment — 422 Error 🔴
+- **Problem**: `POST /api/appointments` returns 422 Unprocessable Content when a patient tries to book an appointment from the dashboard.
+- **Impact**: Core booking workflow is broken
+- **Fix**: Debug the appointment creation schema — likely a field mismatch between frontend form payload and backend `AppointmentCreate` schema (e.g. `doctor_id` not being sent or wrong format)
+- **TODO Phase**: Phase 5c
+
+### ISSUE-034: No "Chat with Patient" Action from Doctor's Patient List 🟠
+- **Problem**: After a doctor links a patient, there is no button or action to start a secure chat with that specific patient from the patient list.
+- **Impact**: Chat feature exists but has no natural entry point from the doctor-patient relationship view
+- **Fix**: Add a "Chat" icon button per patient row that either opens an existing DIRECT room or creates one automatically
+- **TODO Phase**: Phase 5c
+
+### ISSUE-035: UUID Input Required for All Relationships — No Discovery 🔴
+- **Problem**: Adding a patient, referring a doctor, or creating a care team requires manually copying+pasting UUIDs. There's no way for patients to discover/search for doctors, or for doctors to browse available patients.
+- **Impact**: Unusable for real workflows — users must communicate IDs out-of-band
+- **Fix**: Build dedicated pages:
+  - **Patient → Doctor Discovery Page**: Browse available doctors by specialization, request medical assistance with a brief problem description
+  - **Doctor → Patient Requests Page**: See incoming patient requests with problem descriptions, accept/decline cases
+  - Replace manual UUID inputs with searchable dropdowns or request-based flows
+- **TODO Phase**: Phase 5c
+
+### ISSUE-036: Doctor Cannot View Patient's Medical Data 🟠
+- **Problem**: Once a doctor is linked to a patient, they have no way to view the patient's profile details (medical history, allergies, vitals, insurance, medications, etc.).
+- **Impact**: Doctors cannot perform their primary function — reviewing patient health data
+- **Fix**: Add a patient detail view accessible from the doctor's patient list showing all profile fields, care teams, treatment plans, reports, and adherence data
+- **TODO Phase**: Phase 5c
+
+---
+
 ## Summary Matrix
 
 | Severity | Total | Resolved | Open |
 |----------|-------|----------|------|
-| 🔴 Critical | 5 | 5 | 0 |
-| 🟠 High | 7 | 7 | 0 |
-| 🟡 Medium | 8 | 8 | 0 |
+| 🔴 Critical | 7 | 5 | 2 (ISSUE-033, 035) |
+| 🟠 High | 9 | 7 | 2 (ISSUE-034, 036) |
+| 🟡 Medium | 9 | 8 | 1 (ISSUE-032) |
 | 🔵 Low | 11 | 11 | 0 |
-| **Total** | **31** | **31** | **0** |
+| **Total** | **36** | **31** | **5** |

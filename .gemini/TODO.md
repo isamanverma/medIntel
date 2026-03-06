@@ -224,6 +224,41 @@
 
 ---
 
+## Phase 5c: UX Workflows & Doctor-Patient Discovery (3–5 days)
+
+> Fix broken workflows and remove UUID dependency with proper discovery pages.
+
+### 5c.1 Fix Patient DOB in Doctor Panel (ISSUE-032) 🟡
+- [ ] **Backend**: Include `date_of_birth` in `PatientListItem` response schema
+- [ ] **Frontend**: Update doctor patient card to display real DOB or gracefully handle missing data
+
+### 5c.2 Fix Patient Appointment Booking (ISSUE-033) 🔴
+- [ ] **Debug**: Identify schema mismatch causing 422 on `POST /api/appointments`
+- [ ] **Frontend**: Fix appointment form to send correct payload (likely `doctor_id` format issue)
+- [ ] **Tests**: Add test for patient booking an appointment successfully
+
+### 5c.3 Chat Entry Points from Patient List (ISSUE-034) 🟠
+- [ ] **Frontend**: Add "Chat" icon button per patient in doctor's patient list
+- [ ] **Backend/Frontend**: Auto-create or reuse an existing DIRECT chat room when clicked
+- [ ] **Frontend**: Same for patient's doctor list — "Chat with Doctor" button
+
+### 5c.4 Doctor-Patient Discovery System (ISSUE-035) 🔴
+- [ ] **Backend**: `GET /api/doctors/available` — Public listing of doctors (name, specialization, availability)
+- [ ] **Backend**: `POST /api/assistance-requests` — Patient submits a request (doctor_id optional, problem description required)
+- [ ] **Backend**: `GET /api/assistance-requests/incoming` — Doctor sees pending requests
+- [ ] **Backend**: `PATCH /api/assistance-requests/{id}` — Doctor accepts/declines a request (auto-creates mapping on accept)
+- [ ] **Frontend**: Patient "Find a Doctor" page — browse by specialization, submit request
+- [ ] **Frontend**: Doctor "Patient Requests" page — view incoming requests with problem descriptions, accept/decline
+- [ ] **Frontend**: Replace all manual UUID inputs with searchable dropdowns where applicable
+
+### 5c.5 Doctor Patient Data View (ISSUE-036) 🟠
+- [ ] **Frontend**: Patient detail page/modal accessible from doctor's patient list
+- [ ] **Frontend**: Display full patient profile (medical history, allergies, vitals, insurance, address)
+- [ ] **Frontend**: Show patient's treatment plans, medications, adherence stats, reports
+- [ ] **Frontend**: Show patient's care team memberships
+
+---
+
 ## Phase 6: AI/Intelligence Layer — Google Gemini Free Tier (3–5 days)
 
 > The "wow factor" that makes this a healthcare **intelligence** platform.
@@ -297,8 +332,9 @@
 | ~~Phase 4: Security + Interactive~~ | ~~2–3 days~~ | ✅ Done |
 | ~~Phase 5: Patient Data + Referrals~~ | ~~3–5 days~~ | ✅ Done |
 | ~~Phase 5b: Fixes & Chat~~ | ~~3–5 days~~ | ✅ Done |
-| Phase 6: AI Layer | 3–5 days | 21–29 days |
-| Phase 7: Advanced | 5+ days | 26–34+ days |
+| Phase 5c: UX & Discovery | 3–5 days | 24–34 days |
+| Phase 6: AI Layer | 3–5 days | 27–39 days |
+| Phase 7: Advanced | 5+ days | 32–44+ days |
 
 **Minimum viable capstone** = Phases 1–5 (~19 days)
 **Impressive capstone** = Phases 1–6 (~24 days)
