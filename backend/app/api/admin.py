@@ -216,3 +216,105 @@ async def delete_assignment(
     session.add(mapping)
     await session.commit()
 
+
+# ── Admin User Controls ───────────────────────────────────────────
+
+class UserRoleUpdate(BaseModel):
+    role: str
+
+
+class UserStatusUpdate(BaseModel):
+    is_active: bool
+
+
+@router.patch("/users/{user_id}/role", response_model=AdminUserResponse)
+async def update_user_role(
+    user_id: uuid.UUID,
+    body: UserRoleUpdate,
+    session: AsyncSession = Depends(get_session),
+    admin: User = Depends(require_admin),
+) -> AdminUserResponse:
+    """Admin changes a user's role."""
+    user = await session.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Prevent changing own role
+    if user.id == admin.id:
+        raise HTTPException(status_code=400, detail="Cannot change your own role")
+
+    try:
+        new_role = UserRole(body.role.upper())
+    except ValueError:
+        raise HTTPException(status_code=422, detail=f"Invalid role: {body.role}")
+
+    # Prevent demoting the last admin
+    if user.role == UserRole.ADMIN and new_role != UserRole.ADMIN:
+        admin_count = (await session.execute(
+            select(func.count(User.id)).where(User.role == UserRole.ADMIN, User.is_active == True)
+        )).scalar_one()
+        if admin_count <= 1:
+            raise HTTPException(status_code=400, detail="Cannot demote the last admin account")
+
+    user.role = new_role
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+    return AdminUserResponse(
+        id=str(user.id), email=user.email, name=user.name,
+        role=user.role.value if hasattr(user.role, "value") else str(user.role),
+        is_active=user.is_active, created_at=str(user.created_at),
+    )
+
+
+@router.patch("/users/{user_id}/status", response_model=AdminUserResponse)
+async def update_user_status(
+    user_id: uuid.UUID,
+    body: UserStatusUpdate,
+    session: AsyncSession = Depends(get_session),
+    admin: User = Depends(require_admin),
+) -> AdminUserResponse:
+    """Admin activates or deactivates a user account."""
+    user = await session.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if user.id == admin.id:
+        raise HTTPException(status_code=400, detail="Cannot deactivate your own account")
+
+    user.is_active = body.is_active
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+    return AdminUserResponse(
+        id=str(user.id), email=user.email, name=user.name,
+        role=user.role.value if hasattr(user.role, "value") else str(user.role),
+        is_active=user.is_active, created_at=str(user.created_at),
+    )
+
+
+@router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_user(
+    user_id: uuid.UUID,
+    session: AsyncSession = Depends(get_session),
+    admin: User = Depends(require_admin),
+) -> None:
+    """Admin permanently deletes a user account."""
+    user = await session.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if user.id == admin.id:
+        raise HTTPException(status_code=400, detail="Cannot delete your own account")
+
+    if user.role == UserRole.ADMIN:
+        admin_count = (await session.execute(
+            select(func.count(User.id)).where(User.role == UserRole.ADMIN, User.is_active == True)
+        )).scalar_one()
+        if admin_count <= 1:
+            raise HTTPException(status_code=400, detail="Cannot delete the last admin account")
+
+    await session.delete(user)
+    await session.commit()
+
+

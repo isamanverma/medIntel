@@ -212,6 +212,7 @@ async def verify_credentials(
     *,
     email: str,
     password: str,
+    expected_role: Optional[str] = None,
 ) -> TokenResponse:
     """
     Verify email + password and return a JWT + user profile.
@@ -235,6 +236,14 @@ async def verify_credentials(
 
     if not user.is_active:
         raise InvalidCredentialsError("This account has been deactivated")
+
+    # Role validation — reject if the user's role doesn't match the portal
+    if expected_role is not None:
+        user_role_str = user.role.value if hasattr(user.role, "value") else str(user.role)
+        if user_role_str.upper() != expected_role.upper():
+            raise InvalidCredentialsError(
+                f"No {expected_role.lower()} account found for this email"
+            )
 
     token = create_access_token(
         user_id=user.id,

@@ -485,3 +485,55 @@ export async function deleteAssignment(assignmentId: string): Promise<void> {
     method: "DELETE",
   });
 }
+
+// — Admin User Controls ——————————————————————————————
+
+export async function updateUserRole(userId: string, role: string): Promise<AdminUser> {
+  return request<AdminUser>(`/api/admin/users/${userId}/role`, {
+    method: "PATCH",
+    body: JSON.stringify({ role }),
+  });
+}
+
+export async function updateUserStatus(userId: string, is_active: boolean): Promise<AdminUser> {
+  return request<AdminUser>(`/api/admin/users/${userId}/status`, {
+    method: "PATCH",
+    body: JSON.stringify({ is_active }),
+  });
+}
+
+export async function deleteUser(userId: string): Promise<void> {
+  await request<void>(`/api/admin/users/${userId}`, {
+    method: "DELETE",
+  });
+}
+
+// — Secure Chat ——————————————————————————————
+
+export async function createChatRoom(data: { name?: string; room_type?: string; participant_ids: string[] }) {
+  return request<import("./types").ChatRoom>("/api/chat/rooms", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function getChatRooms() {
+  return request<import("./types").ChatRoom[]>("/api/chat/rooms");
+}
+
+export async function getChatMessages(roomId: string) {
+  return request<import("./types").ChatMessage[]>(`/api/chat/rooms/${roomId}/messages`);
+}
+
+export async function sendChatMessage(roomId: string, content: string) {
+  return request<import("./types").ChatMessage>(`/api/chat/rooms/${roomId}/messages`, {
+    method: "POST",
+    body: JSON.stringify({ content }),
+  });
+}
+
+export async function deleteChatMessage(roomId: string, messageId: string) {
+  await request<void>(`/api/chat/rooms/${roomId}/messages/${messageId}`, {
+    method: "DELETE",
+  });
+}

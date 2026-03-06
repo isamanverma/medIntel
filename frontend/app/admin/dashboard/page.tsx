@@ -17,14 +17,22 @@ import {
   Link2,
   Trash2,
   Plus,
+  Copy,
+  UserCog,
+  Power,
+  PowerOff,
 } from "lucide-react";
 import Link from "next/link";
+import { SecureChat } from "@/components/chat/SecureChat";
 import {
   getAdminStats,
   getAdminUsers,
   getAssignments,
   createAssignment,
   deleteAssignment,
+  updateUserRole,
+  updateUserStatus,
+  deleteUser,
 } from "@/lib/api-client";
 import type { AdminStats, AdminAssignment } from "@/lib/types";
 import type { AdminUser } from "@/lib/api-client";
@@ -41,6 +49,7 @@ export default function AdminDashboard() {
   const [assignPatientId, setAssignPatientId] = useState("");
   const [assignDoctorId, setAssignDoctorId] = useState("");
   const [assigning, setAssigning] = useState(false);
+  const [editingRoleId, setEditingRoleId] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     try {
@@ -81,6 +90,38 @@ export default function AdminDashboard() {
       setAssignments((prev) => prev.filter((a) => a.id !== id));
     } catch (err: unknown) {
       toast(err instanceof Error ? err.message : "Failed to remove assignment", "error");
+    }
+  };
+
+  const handleToggleStatus = async (u: AdminUser) => {
+    try {
+      const updated = await updateUserStatus(u.id, !u.is_active);
+      setUsers((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
+      toast(`User ${updated.is_active ? "activated" : "deactivated"}`, "success");
+    } catch (err: unknown) {
+      toast(err instanceof Error ? err.message : "Failed to update status", "error");
+    }
+  };
+
+  const handleRoleChange = async (userId: string, role: string) => {
+    setEditingRoleId(null);
+    try {
+      const updated = await updateUserRole(userId, role);
+      setUsers((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
+      toast(`Role updated to ${role}`, "success");
+    } catch (err: unknown) {
+      toast(err instanceof Error ? err.message : "Failed to update role", "error");
+    }
+  };
+
+  const handleDeleteUser = async (userId: string) => {
+    if (!confirm("Permanently delete this user? This cannot be undone.")) return;
+    try {
+      await deleteUser(userId);
+      setUsers((prev) => prev.filter((x) => x.id !== userId));
+      toast("User deleted", "success");
+    } catch (err: unknown) {
+      toast(err instanceof Error ? err.message : "Failed to delete user", "error");
     }
   };
 
@@ -196,6 +237,7 @@ export default function AdminDashboard() {
                     <th className="px-6 py-3 text-left font-medium text-muted-foreground">Role</th>
                     <th className="px-6 py-3 text-left font-medium text-muted-foreground">Status</th>
                     <th className="px-6 py-3 text-left font-medium text-muted-foreground">Joined</th>
+                    <th className="px-6 py-3 text-right font-medium text-muted-foreground">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -213,9 +255,23 @@ export default function AdminDashboard() {
                         </div>
                       </td>
                       <td className="px-6 py-3">
-                        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${roleColors[u.role] || "bg-muted text-muted-foreground"}`}>
-                          {u.role}
-                        </span>
+                        {editingRoleId === u.id ? (
+                          <select
+                            defaultValue={u.role}
+                            autoFocus
+                            onBlur={(e) => handleRoleChange(u.id, e.target.value)}
+                            onChange={(e) => handleRoleChange(u.id, e.target.value)}
+                            className="rounded border border-border bg-background px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-accent"
+                          >
+                            {["PATIENT", "DOCTOR", "ADMIN"].map((r) => (
+                              <option key={r} value={r}>{r}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${roleColors[u.role] || "bg-muted text-muted-foreground"}`}>
+                            {u.role}
+                          </span>
+                        )}
                       </td>
                       <td className="px-6 py-3">
                         <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${u.is_active ? "bg-secondary/10 text-secondary" : "bg-destructive/10 text-destructive"}`}>
@@ -225,6 +281,31 @@ export default function AdminDashboard() {
                       <td className="px-6 py-3 text-muted-foreground">
                         {new Date(u.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                       </td>
+                      <td className="px-6 py-3 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={() => setEditingRoleId(editingRoleId === u.id ? null : u.id)}
+                            className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                            title="Change role"
+                          >
+                            <UserCog className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleToggleStatus(u)}
+                            className={`rounded p-1.5 transition-colors ${u.is_active ? "text-amber-500 hover:bg-amber-500/10" : "text-secondary hover:bg-secondary/10"}`}
+                            title={u.is_active ? "Deactivate" : "Activate"}
+                          >
+                            {u.is_active ? <PowerOff className="h-3.5 w-3.5" /> : <Power className="h-3.5 w-3.5" />}
+                          </button>
+                          <button
+                            onClick={() => handleDeleteUser(u.id)}
+                            className="rounded p-1.5 text-destructive hover:bg-destructive/10 transition-colors"
+                            title="Delete user"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -232,24 +313,65 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          {/* Secondary Stats */}
-          <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
-            <h2 className="mb-4 text-lg font-semibold text-card-foreground">Platform Overview</h2>
-            <div className="space-y-4">
-              {secondaryStats.map((stat) => {
-                const Icon = stat.icon;
-                return (
-                  <div key={stat.label} className="flex items-center justify-between rounded-lg border border-border p-4">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
-                        <Icon className="h-5 w-5 text-muted-foreground" />
-                      </div>
-                      <span className="text-sm font-medium text-card-foreground">{stat.label}</span>
+          {/* Sidebar: Admin Profile + Platform Overview */}
+          <div className="space-y-6">
+            {/* Admin Profile Card */}
+            <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
+              <div className="flex items-center gap-2 mb-4">
+                <Shield className="h-4 w-4 text-accent" />
+                <h2 className="text-sm font-semibold text-card-foreground">Admin Profile</h2>
+              </div>
+              <div className="flex flex-col items-center pb-4 border-b border-border">
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-accent/10 text-accent font-bold text-lg">
+                  {session.user.name?.charAt(0).toUpperCase()}
+                </div>
+                <p className="mt-2 text-sm font-semibold text-card-foreground">{session.user.name}</p>
+                <p className="text-xs text-muted-foreground">{session.user.email}</p>
+                <span className="mt-1 inline-flex items-center rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-semibold text-accent">
+                  <Shield className="mr-1 h-2.5 w-2.5" /> ADMIN
+                </span>
+              </div>
+              <div className="mt-3 space-y-2.5">
+                {[
+                  { label: "User ID", value: session.user.id },
+                  { label: "Member Since", value: new Date(session.user.created_at).toLocaleDateString("en-US", { month: "short", year: "numeric" }) },
+                ].map(({ label, value }) => (
+                  <div key={label}>
+                    <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-0.5">{label}</p>
+                    <div className="flex items-center gap-1.5">
+                      <code className="flex-1 truncate rounded bg-muted px-2 py-1 text-[11px] text-foreground font-mono">{value}</code>
+                      <button
+                        onClick={() => { navigator.clipboard.writeText(value); toast("Copied!", "success"); }}
+                        className="flex-shrink-0 rounded p-1 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                        title="Copy"
+                      >
+                        <Copy className="h-3.5 w-3.5" />
+                      </button>
                     </div>
-                    <span className="text-lg font-bold text-card-foreground">{stat.value.toLocaleString()}</span>
                   </div>
-                );
-              })}
+                ))}
+              </div>
+            </div>
+
+            {/* Platform Overview */}
+            <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
+              <h2 className="mb-4 text-lg font-semibold text-card-foreground">Platform Overview</h2>
+              <div className="space-y-4">
+                {secondaryStats.map((stat) => {
+                  const Icon = stat.icon;
+                  return (
+                    <div key={stat.label} className="flex items-center justify-between rounded-lg border border-border p-4">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
+                          <Icon className="h-5 w-5 text-muted-foreground" />
+                        </div>
+                        <span className="text-sm font-medium text-card-foreground">{stat.label}</span>
+                      </div>
+                      <span className="text-lg font-bold text-card-foreground">{stat.value.toLocaleString()}</span>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>
@@ -348,6 +470,11 @@ export default function AdminDashboard() {
             </button>
           </div>
         </Modal>
+
+        {/* Secure Chat */}
+        <div className="mt-8">
+          <SecureChat />
+        </div>
       </main>
     </div>
   );

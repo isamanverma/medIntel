@@ -32,6 +32,7 @@ import {
 interface LoginBody {
   email: string;
   password: string;
+  role?: string;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────
@@ -59,7 +60,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
   }
 
-  const { email, password } = body;
+  const { email, password, role } = body;
 
   // ── Light validation (fail fast before hitting the network) ────
   if (!email || !password) {
@@ -72,7 +73,7 @@ export async function POST(request: NextRequest) {
   // ── Forward to FastAPI backend ─────────────────────────────────
   let result: TokenResponse;
   try {
-    result = await login({ email, password });
+    result = await login({ email, password, role });
   } catch (error) {
     // Map known backend errors to appropriate HTTP responses
     if (error instanceof BackendError) {

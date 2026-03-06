@@ -61,7 +61,7 @@ function LoginForm() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, role: role.toUpperCase() }),
       });
 
       const data = await res.json();
@@ -155,8 +155,8 @@ function LoginForm() {
                     setError("");
                   }}
                   className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-2.5 text-sm font-medium transition-all ${role === r
-                      ? "bg-card shadow-sm " + config.color
-                      : "text-muted-foreground hover:text-foreground"
+                    ? "bg-card shadow-sm " + config.color
+                    : "text-muted-foreground hover:text-foreground"
                     }`}
                 >
                   <Icon className="h-4 w-4" />

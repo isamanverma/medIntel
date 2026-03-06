@@ -185,6 +185,45 @@
 
 ---
 
+## Phase 5b: Profile Sections, Login Fix, Chat, Admin Controls (3–5 days) ✅ COMPLETE
+
+> Profile visibility, role security, secure messaging, and admin power-ups.
+
+### 5b.1 Role-Validated Login (ISSUE-028) 🔴 ✅
+- [x] **Backend**: Add `role` param to `LoginRequest` + `verify_credentials()`
+- [x] **Backend**: Reject login if user.role ≠ expected role → "No such {role} account found"
+- [x] **Frontend BFF**: Forward `role` to FastAPI login endpoint
+- [x] **Frontend Login**: Include selected role in POST body
+- [x] **Tests**: Doctor can't login as admin, patient can't login as doctor
+
+### 5b.2 Profile Sections with Visible IDs (ISSUE-029) ✅
+- [x] **Patient Dashboard**: Profile card showing User ID + Patient Profile ID (copy button)
+- [x] **Doctor Dashboard**: Profile card showing User ID + Doctor Profile ID (copy button)
+- [x] **Admin Dashboard**: Profile card with User ID + account details
+- [x] Show email, role, creation date on all profile cards
+
+### 5b.3 Secure Chat System (ISSUE-030) ✅
+- [x] **Backend model**: `ChatRoom` — `id`, `room_type` (DIRECT/GROUP), `created_by`, `created_at`
+- [x] **Backend model**: `ChatParticipant` — `room_id`, `user_id`, `joined_at`
+- [x] **Backend model**: `ChatMessage` — `room_id`, `sender_id`, `content`, `created_at`, `is_deleted`
+- [x] **Backend**: `POST /api/chat/rooms` — Create chat room
+- [x] **Backend**: `GET /api/chat/rooms` — List my rooms
+- [x] **Backend**: `POST /api/chat/rooms/{id}/messages` — Send message
+- [x] **Backend**: `GET /api/chat/rooms/{id}/messages` — Get history
+- [x] **Backend**: `DELETE /api/chat/rooms/{id}/messages/{msg_id}` — Admin-only soft delete
+- [x] **Frontend**: Chat section on patient + doctor dashboards
+- [x] **Frontend**: Message history, send input, no user edit/delete
+- [x] **Tests**: Create room, send message, history order, admin delete, user can't delete
+
+### 5b.4 Admin Controls (ISSUE-031) ✅
+- [x] **Backend**: `PATCH /api/admin/users/{id}/role` — Change user role
+- [x] **Backend**: `PATCH /api/admin/users/{id}/status` — Activate/deactivate
+- [x] **Backend**: `DELETE /api/admin/users/{id}` — Hard delete
+- [x] **Frontend**: Action buttons per user row (role dropdown, toggle, delete)
+- [x] **Tests**: Admin can change role, toggle status, delete user; non-admin cannot
+
+---
+
 ## Phase 6: AI/Intelligence Layer — Google Gemini Free Tier (3–5 days)
 
 > The "wow factor" that makes this a healthcare **intelligence** platform.
@@ -257,8 +296,9 @@
 | ~~Phase 3: Frontend Connect~~ | ~~3–4 days~~ | ✅ Done |
 | ~~Phase 4: Security + Interactive~~ | ~~2–3 days~~ | ✅ Done |
 | ~~Phase 5: Patient Data + Referrals~~ | ~~3–5 days~~ | ✅ Done |
-| Phase 6: AI Layer | 3–5 days | 18–24 days |
-| Phase 7: Advanced | 5+ days | 23–29+ days |
+| ~~Phase 5b: Fixes & Chat~~ | ~~3–5 days~~ | ✅ Done |
+| Phase 6: AI Layer | 3–5 days | 21–29 days |
+| Phase 7: Advanced | 5+ days | 26–34+ days |
 
 **Minimum viable capstone** = Phases 1–5 (~19 days)
 **Impressive capstone** = Phases 1–6 (~24 days)

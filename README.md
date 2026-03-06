@@ -121,7 +121,7 @@ We use a BFF (Backend-for-Frontend) pattern:
 
 ## Database
 
-12 tables: `users`, `patient_profiles`, `doctor_profiles`, `patient_doctor_mappings`, `appointments`, `treatment_plans`, `medications`, `adherence_logs`, `medical_reports`, `agent_insights`, `referrals`, `care_teams`, `care_team_members`.
+15 tables: `users`, `patient_profiles`, `doctor_profiles`, `patient_doctor_mappings`, `appointments`, `treatment_plans`, `medications`, `adherence_logs`, `medical_reports`, `agent_insights`, `referrals`, `care_teams`, `care_team_members`, `chat_rooms`, `chat_participants`, `chat_messages`.
 
 To create a new migration after changing models:
 
@@ -134,15 +134,14 @@ uv run alembic upgrade head
 ## Current State
 
 What works:
-- Signup, login, logout, session persistence with rate limiting
+- Signup, login, logout, session persistence with rate limiting and strict role validation
 - Role-based route protection (middleware + per-page guards)
 - Landing page and all three dashboard portals
-- **Backend Complete via Phase 5**: 37 API endpoints spanning Profiles, Appointments, Reports, Adherence, Mappings, Referrals, Care Teams, and Admin Assignments.
-- **Frontend Connect**: Interactive Next.js dashboards hitting real APIs spanning Phase 3-4 features.
-- Testing Setup: 51 tests covering complete backend features.
+- **Backend Complete via Phase 5b**: 50 API endpoints spanning Profiles, Appointments, Adherence, Mappings, Referrals, Care Teams, Admin Assignments, Secure Chat, and Admin Controls.
+- **Frontend Connect**: Interactive Next.js dashboards hitting real APIs for all Phase 1-5b features, including a real-time secure chat UI.
+- Testing Setup: 76 tests spanning the entire FastAPI backend suite.
 
 What does not work yet:
-- Frontend views for Phase 5 features (Referrals, Care Teams, Admin Assignments, extended Patient profiles) are not yet built.
 - No AI/ML features yet (Phase 6).
 
 ## Documentation

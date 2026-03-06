@@ -16,7 +16,9 @@ import {
   Users,
   Inbox,
   Plus,
+  Copy,
 } from "lucide-react";
+import { SecureChat } from "@/components/chat/SecureChat";
 import Link from "next/link";
 import {
   getUpcomingAppointments,
@@ -365,6 +367,31 @@ export default function PatientDashboard() {
                     </div>
                   )}
                 </div>
+
+                {/* Your IDs — for sharing with doctors/admin */}
+                <div className="border-t border-border pt-3 space-y-2">
+                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Your IDs</p>
+                  {[
+                    { label: "User ID", value: session.user.id },
+                    { label: "Patient Profile ID", value: String(profile.id) },
+                  ].map(({ label, value }) => (
+                    <div key={label}>
+                      <p className="text-[10px] text-muted-foreground mb-0.5">{label}</p>
+                      <div className="flex items-center gap-1.5">
+                        <code className="flex-1 truncate rounded bg-muted px-2 py-1 text-[11px] text-foreground font-mono">{value}</code>
+                        <button
+                          type="button"
+                          onClick={() => { navigator.clipboard.writeText(value); toast("Copied!", "success"); }}
+                          className="flex-shrink-0 rounded p-1 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                          title="Copy to clipboard"
+                        >
+                          <Copy className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
                 <button onClick={openProfileForm}
                   className="w-full mt-2 rounded-lg bg-primary/10 px-4 py-2 text-xs font-medium text-primary hover:bg-primary/20 transition-colors">
                   Edit Profile
@@ -381,6 +408,11 @@ export default function PatientDashboard() {
               </div>
             )}
           </div>
+        </div>
+
+        {/* Secure Chat */}
+        <div className="mt-8">
+          <SecureChat />
         </div>
       </main>
 

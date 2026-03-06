@@ -38,6 +38,7 @@ export interface SignupRequest {
 export interface LoginRequest {
     email: string;
     password: string;
+    role?: string;
 }
 
 export interface ApiError {
@@ -204,3 +205,31 @@ export interface AdminAssignment {
     created_at: string;
 }
 
+export interface AdminUser {
+    id: string;
+    name: string;
+    email: string;
+    role: "PATIENT" | "DOCTOR" | "ADMIN";
+    is_active: boolean;
+    created_at: string;
+}
+
+// — Secure Chat ——————————————————————————————
+
+export interface ChatRoom {
+    id: string;
+    name: string | null;
+    room_type: "DIRECT" | "GROUP";
+    created_by: string;
+    created_at: string;
+    participant_count: number;
+}
+
+export interface ChatMessage {
+    id: string;
+    room_id: string;
+    sender_id: string;
+    content: string;
+    created_at: string;
+    is_deleted: boolean;
+}

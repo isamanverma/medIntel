@@ -28,38 +28,37 @@ MedIntel is an AI-driven healthcare intelligence ecosystem with a FastAPI backen
   - `api/care_teams.py` — Multi-doctor care teams (4 routes)
   - `deps.py` — Shared auth dependencies (get_current_user, require_patient/doctor/admin)
   - `services/auth_service.py` — Business logic (bcrypt, JWT)
-  - `models/` — 12 SQLModel tables (User, PatientProfile, DoctorProfile, Appointment, TreatmentPlan, Medication, MedicalReport, AdherenceLog, AgentInsight, Referral, CareTeam, CareTeamMember)
+  - `models/` — 15 SQLModel tables (User, PatientProfile, DoctorProfile, Appointment, TreatmentPlan, Medication, MedicalReport, AdherenceLog, AgentInsight, Referral, CareTeam, CareTeamMember, ChatRoom, ChatParticipant, ChatMessage)
   - `core/config.py` — Enhanced settings with feature flags, CSRF, pagination, security config
   - `middleware/csrf.py` — Double-submit cookie CSRF middleware (configurable)
   - `db/engine.py` — Async engine + session factory + before_flush listener
-  - `tests/` — 65 tests (pytest + httpx + pytest-asyncio)
+  - `tests/` — 76 tests (pytest + httpx + pytest-asyncio)
 
 - **Frontend** (`frontend/`): Next.js App Router
-  - `app/(auth)/` — Login/signup pages with role toggle
-  - `app/patient/dashboard/` — Patient portal (multi-section profile + appointment booking)
-  - `app/doctor/dashboard/` — Doctor portal (patients + referrals + care teams + appointments)
-  - `app/admin/dashboard/` — Admin portal (stats + user management + patient-doctor assignments)
+  - `app/(auth)/` — Login/signup pages with explicit role validation
+  - `app/patient/dashboard/` — Patient portal (profile + appointments + chat + care team)
+  - `app/doctor/dashboard/` — Doctor portal (patients + referrals + care teams + appointments + chat)
+  - `app/admin/dashboard/` — Admin portal (stats + user management + assignments + chat)
   - `app/api/auth/` — BFF proxy routes (login, signup, me, logout)
-  - `lib/api-client.ts` — 49 API client functions
-  - `lib/types.ts` — All TypeScript interfaces (including Referral, CareTeam, AdminAssignment)
+  - `lib/api-client.ts` — 57 API client functions
+  - `lib/types.ts` — All TypeScript interfaces (including ChatRoom, ChatMessage)
   - `components/providers/SessionProvider.tsx` — Custom auth context
   - `components/ui/Modal.tsx` — Reusable modal component
   - `components/ui/Toast.tsx` — Toast notification system
+  - `components/chat/SecureChat.tsx` — Reusable real-time chat UI
   - `proxy.ts` — JWT-based route protection
 
 ## Current Status
 
-- ✅ Auth flow fully working (signup → login → session → logout)
-- ✅ Database schema defined (12 tables with relationships)
-- ✅ All CRUD APIs implemented (42 endpoints, 65 tests passing)
-- ✅ All dashboards interactive with live API data (Phases 1–5 complete)
-- ✅ Rate limiting on auth endpoints
-- ✅ CSRF middleware (double-submit cookie, configurable)
-- ✅ Enhanced config.py with feature flags, pagination, security settings
-- ✅ Multi-section tabbed patient profile (Personal/Medical/Insurance/Contact)
-- ✅ Doctor referral inbox/outbox + care team management
-- ✅ Admin patient-doctor assignment management
-- ✅ All 27 issues resolved (ISSUE-001 through ISSUE-027)
+- ✅ Auth flow fully working with strict role validation (Doctor cannot login as Admin)
+- ✅ Database schema defined (15 tables with relationships including Chat)
+- ✅ All CRUD APIs implemented (50 endpoints, 76 tests passing)
+- ✅ All dashboards interactive with live API data (Phases 1–5b complete)
+- ✅ Rate limiting on auth endpoints + Double-submit cookie CSRF
+- ✅ Multi-section tabbed patient profile
+- ✅ Secure immutable chat system with admin soft-delete
+- ✅ Admin user controls (role change, activate/deactivate, hard delete)
+- ✅ All 31 issues resolved (ISSUE-001 through ISSUE-031)
 - ❌ AI/ML intelligence layer not started (Phase 6)
 
 ## Running Locally

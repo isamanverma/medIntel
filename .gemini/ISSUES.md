@@ -105,12 +105,28 @@
 
 ---
 
+## New Issues (Phase 5b)
+
+### ~~ISSUE-028: Cross-Role Login — Doctor Can Login as Admin~~ ✅ RESOLVED
+- **Fixed in**: Phase 5b — Passed `expected_role` from frontend login form and validated role match before issuing JWT.
+
+### ~~ISSUE-029: Profile IDs Not Visible to Users~~ ✅ RESOLVED
+- **Fixed in**: Phase 5b — Added profile sections to all three dashboards displaying User ID and Profile ID with copy-to-clipboard functionality.
+
+### ~~ISSUE-030: No Secure Chat Feature~~ ✅ RESOLVED
+- **Fixed in**: Phase 5b — Implemented ChatRoom + ChatMessage models, API endpoints, and a reusable SecureChat frontend component. Messages are immutable with admin-only soft-delete.
+
+### ~~ISSUE-031: Admin Has No Control Actions~~ ✅ RESOLVED
+- **Fixed in**: Phase 5b — Built role change, activate/deactivate, and delete user endpoints + UI controls in Admin Dashboard.
+
+---
+
 ## Summary Matrix
 
 | Severity | Total | Resolved | Open |
 |----------|-------|----------|------|
-| 🔴 Critical | 4 | 4 | 0 |
-| 🟠 High | 5 | 5 | 0 |
-| 🟡 Medium | 7 | 7 | 0 |
+| 🔴 Critical | 5 | 5 | 0 |
+| 🟠 High | 7 | 7 | 0 |
+| 🟡 Medium | 8 | 8 | 0 |
 | 🔵 Low | 11 | 11 | 0 |
-| **Total** | **27** | **27** | **0** |
+| **Total** | **31** | **31** | **0** |

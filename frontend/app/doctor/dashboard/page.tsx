@@ -23,6 +23,7 @@ import {
   UsersRound,
 } from "lucide-react";
 import Link from "next/link";
+import { SecureChat } from "@/components/chat/SecureChat";
 import {
   getUpcomingAppointments,
   getMyPatients,
@@ -367,8 +368,54 @@ export default function DoctorDashboard() {
             )}
           </div>
 
+          {/* My Profile / ID Card */}
+          <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
+            <div className="flex items-center gap-2 mb-4">
+              <Stethoscope className="h-4 w-4 text-secondary" />
+              <h2 className="text-sm font-semibold text-card-foreground">My Profile</h2>
+            </div>
+            <div className="flex flex-col items-center pb-4 border-b border-border">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-secondary/10 text-secondary font-bold text-lg">
+                {session.user.name?.charAt(0).toUpperCase()}
+              </div>
+              <p className="mt-2 text-sm font-semibold text-card-foreground">{session.user.name}</p>
+              <p className="text-xs text-muted-foreground">{session.user.email}</p>
+              {profile && (
+                <p className="mt-1 text-xs text-secondary font-medium">{profile.specialization}</p>
+              )}
+            </div>
+            <div className="mt-3 space-y-2.5">
+              {[
+                { label: "User ID", value: session.user.id },
+                ...(profile ? [{ label: "Doctor Profile ID", value: String(profile.id) }] : []),
+                ...(profile?.license_number ? [{ label: "License #", value: profile.license_number }] : []),
+              ].map(({ label, value }) => (
+                <div key={label}>
+                  <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-0.5">{label}</p>
+                  <div className="flex items-center gap-1.5">
+                    <code className="flex-1 truncate rounded bg-muted px-2 py-1 text-[11px] text-foreground font-mono">{value}</code>
+                    <button
+                      onClick={() => { navigator.clipboard.writeText(value); toast("Copied!", "success"); }}
+                      className="flex-shrink-0 rounded p-1 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                      title="Copy to clipboard"
+                    >
+                      <Activity className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {!profile && (
+              <button onClick={() => setShowProfileForm(true)}
+                className="mt-3 w-full rounded-lg bg-secondary px-3 py-1.5 text-xs font-medium text-white hover:bg-secondary/90 transition-colors">
+                Complete Profile
+              </button>
+            )}
+          </div>
+
           {/* My Patients */}
           <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
+
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-card-foreground">My Patients</h2>
               <button onClick={() => setShowAddPatient(true)}
@@ -487,6 +534,11 @@ export default function DoctorDashboard() {
               </div>
             )}
           </div>
+        </div>
+
+        {/* Secure Chat */}
+        <div className="mt-8">
+          <SecureChat />
         </div>
       </main>
 

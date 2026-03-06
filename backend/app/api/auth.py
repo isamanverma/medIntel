@@ -48,6 +48,7 @@ class LoginRequest(BaseModel):
 
     email: EmailStr
     password: str = PydanticField(..., min_length=1)
+    role: str | None = PydanticField(default=None, description="Expected role for portal validation")
 
 
 class ErrorResponse(BaseModel):
@@ -124,6 +125,7 @@ async def login(
             session,
             email=body.email,
             password=body.password,
+            expected_role=body.role,
         )
     except InvalidCredentialsError as exc:
         raise HTTPException(

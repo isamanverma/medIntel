@@ -24,6 +24,7 @@ from app.models.adherence import AdherenceLog  # noqa: F401
 from app.models.insight import AgentInsight  # noqa: F401
 from app.models.referral import Referral  # noqa: F401
 from app.models.care_team import CareTeam, CareTeamMember  # noqa: F401
+from app.models.chat import ChatRoom, ChatParticipant, ChatMessage  # noqa: F401
 
 __all__ = [
     # Enums
@@ -53,4 +54,8 @@ __all__ = [
     "Referral",
     "CareTeam",
     "CareTeamMember",
+    # Secure Chat
+    "ChatRoom",
+    "ChatParticipant",
+    "ChatMessage",
 ]
