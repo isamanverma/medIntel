@@ -18,6 +18,9 @@ import {
   CheckCircle,
   XCircle,
   UserPlus,
+  Send,
+  ArrowRightLeft,
+  UsersRound,
 } from "lucide-react";
 import Link from "next/link";
 import {
@@ -27,8 +30,14 @@ import {
   createDoctorProfile,
   createMapping,
   updateAppointmentStatus,
+  getSentReferrals,
+  getReceivedReferrals,
+  createReferral,
+  updateReferralStatus,
+  getDoctorCareTeams,
+  createCareTeam,
 } from "@/lib/api-client";
-import type { Appointment, MappingPatient, DoctorProfile } from "@/lib/types";
+import type { Appointment, MappingPatient, DoctorProfile, Referral, CareTeam } from "@/lib/types";
 
 export default function DoctorDashboard() {
   const { session, status, logout } = useAuth();
@@ -43,6 +52,8 @@ export default function DoctorDashboard() {
   // Modals
   const [showProfileForm, setShowProfileForm] = useState(false);
   const [showAddPatient, setShowAddPatient] = useState(false);
+  const [showReferralForm, setShowReferralForm] = useState(false);
+  const [showCareTeamForm, setShowCareTeamForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   // Profile form
@@ -56,14 +67,30 @@ export default function DoctorDashboard() {
   // Add patient form
   const [patientId, setPatientId] = useState("");
 
+  // Referrals
+  const [sentReferrals, setSentReferrals] = useState<Referral[]>([]);
+  const [receivedReferrals, setReceivedReferrals] = useState<Referral[]>([]);
+  const [referralTab, setReferralTab] = useState<"received" | "sent">("received");
+  const [referralForm, setReferralForm] = useState({ referred_doctor_id: "", patient_id: "", reason: "" });
+
+  // Care Teams
+  const [careTeams, setCareTeams] = useState<CareTeam[]>([]);
+  const [careTeamForm, setCareTeamForm] = useState({ patient_id: "", name: "", description: "" });
+
   const fetchData = useCallback(async () => {
     try {
-      const [upcomingRes, patientsRes] = await Promise.allSettled([
+      const [upcomingRes, patientsRes, sentRef, receivedRef, teamsRes] = await Promise.allSettled([
         getUpcomingAppointments(),
         getMyPatients(),
+        getSentReferrals(),
+        getReceivedReferrals(),
+        getDoctorCareTeams(),
       ]);
       if (upcomingRes.status === "fulfilled") setUpcoming(upcomingRes.value);
       if (patientsRes.status === "fulfilled") setPatients(patientsRes.value);
+      if (sentRef.status === "fulfilled") setSentReferrals(sentRef.value);
+      if (receivedRef.status === "fulfilled") setReceivedReferrals(receivedRef.value);
+      if (teamsRes.status === "fulfilled") setCareTeams(teamsRes.value);
       try {
         const p = await getMyDoctorProfile();
         setProfile(p);
@@ -127,6 +154,48 @@ export default function DoctorDashboard() {
       await fetchData();
     } catch (err: unknown) {
       toast(err instanceof Error ? err.message : "Failed to update status", "error");
+    }
+  };
+
+  const handleCreateReferral = async () => {
+    if (!referralForm.referred_doctor_id || !referralForm.patient_id || !referralForm.reason) return;
+    setSubmitting(true);
+    try {
+      await createReferral(referralForm);
+      toast("Referral sent!", "success");
+      setShowReferralForm(false);
+      setReferralForm({ referred_doctor_id: "", patient_id: "", reason: "" });
+      await fetchData();
+    } catch (err: unknown) {
+      toast(err instanceof Error ? err.message : "Failed to create referral", "error");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleReferralAction = async (id: string, action: "ACCEPTED" | "DECLINED") => {
+    try {
+      await updateReferralStatus(id, action);
+      toast(`Referral ${action.toLowerCase()}!`, "success");
+      await fetchData();
+    } catch (err: unknown) {
+      toast(err instanceof Error ? err.message : "Failed to update referral", "error");
+    }
+  };
+
+  const handleCreateCareTeam = async () => {
+    if (!careTeamForm.patient_id || !careTeamForm.name) return;
+    setSubmitting(true);
+    try {
+      await createCareTeam(careTeamForm);
+      toast("Care team created!", "success");
+      setShowCareTeamForm(false);
+      setCareTeamForm({ patient_id: "", name: "", description: "" });
+      await fetchData();
+    } catch (err: unknown) {
+      toast(err instanceof Error ? err.message : "Failed to create care team", "error");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -269,9 +338,9 @@ export default function DoctorDashboard() {
                     </div>
                     <div className="flex items-center gap-2">
                       <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${appt.status === "COMPLETED" ? "bg-secondary/10 text-secondary"
-                          : appt.status === "CONFIRMED" ? "bg-primary/10 text-primary"
-                            : appt.status === "CANCELLED" ? "bg-destructive/10 text-destructive"
-                              : "bg-amber-500/10 text-amber-600"
+                        : appt.status === "CONFIRMED" ? "bg-primary/10 text-primary"
+                          : appt.status === "CANCELLED" ? "bg-destructive/10 text-destructive"
+                            : "bg-amber-500/10 text-amber-600"
                         }`}>{appt.status}</span>
                       {appt.status === "PENDING" && (
                         <div className="flex gap-1">
@@ -330,6 +399,95 @@ export default function DoctorDashboard() {
             )}
           </div>
         </div>
+
+        {/* Referrals Section */}
+        <div className="mt-8 rounded-xl border border-border bg-card shadow-sm">
+          <div className="border-b border-border px-6 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <ArrowRightLeft className="h-5 w-5 text-accent" />
+              <h2 className="text-lg font-semibold text-card-foreground">Referrals</h2>
+            </div>
+            <button onClick={() => setShowReferralForm(true)}
+              className="flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-accent/90 transition-colors">
+              <Send className="h-4 w-4" /> Refer Patient
+            </button>
+          </div>
+          <div className="border-b border-border">
+            <div className="flex">
+              <button onClick={() => setReferralTab("received")} className={`flex-1 px-4 py-2.5 text-sm font-medium transition-colors ${referralTab === "received" ? "border-b-2 border-accent text-accent" : "text-muted-foreground hover:text-foreground"}`}>
+                Received ({receivedReferrals.length})
+              </button>
+              <button onClick={() => setReferralTab("sent")} className={`flex-1 px-4 py-2.5 text-sm font-medium transition-colors ${referralTab === "sent" ? "border-b-2 border-accent text-accent" : "text-muted-foreground hover:text-foreground"}`}>
+                Sent ({sentReferrals.length})
+              </button>
+            </div>
+          </div>
+          <div className="p-4">
+            {(referralTab === "received" ? receivedReferrals : sentReferrals).length === 0 ? (
+              <p className="py-6 text-center text-sm text-muted-foreground">No {referralTab} referrals yet.</p>
+            ) : (
+              <div className="space-y-3">
+                {(referralTab === "received" ? receivedReferrals : sentReferrals).map((ref) => (
+                  <div key={ref.id} className="flex items-center justify-between rounded-lg border border-border p-3">
+                    <div>
+                      <p className="text-sm font-medium text-card-foreground">{ref.reason}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Patient: {ref.patient_id.slice(0, 8)}… · {new Date(ref.created_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${ref.status === "ACCEPTED" ? "bg-secondary/10 text-secondary" : ref.status === "DECLINED" ? "bg-destructive/10 text-destructive" : "bg-amber-500/10 text-amber-600"}`}>
+                        {ref.status}
+                      </span>
+                      {referralTab === "received" && ref.status === "PENDING" && (
+                        <div className="flex gap-1">
+                          <button onClick={() => handleReferralAction(ref.id, "ACCEPTED")} className="flex h-7 w-7 items-center justify-center rounded-md bg-secondary/10 text-secondary hover:bg-secondary/20 transition-colors" title="Accept">
+                            <CheckCircle className="h-4 w-4" />
+                          </button>
+                          <button onClick={() => handleReferralAction(ref.id, "DECLINED")} className="flex h-7 w-7 items-center justify-center rounded-md bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors" title="Decline">
+                            <XCircle className="h-4 w-4" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Care Teams Section */}
+        <div className="mt-8 rounded-xl border border-border bg-card shadow-sm">
+          <div className="border-b border-border px-6 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <UsersRound className="h-5 w-5 text-secondary" />
+              <h2 className="text-lg font-semibold text-card-foreground">My Care Teams</h2>
+            </div>
+            <button onClick={() => setShowCareTeamForm(true)}
+              className="flex items-center gap-1.5 rounded-lg bg-secondary px-3 py-1.5 text-sm font-medium text-white hover:bg-secondary/90 transition-colors">
+              <Plus className="h-4 w-4" /> New Team
+            </button>
+          </div>
+          <div className="p-4">
+            {careTeams.length === 0 ? (
+              <p className="py-6 text-center text-sm text-muted-foreground">No care teams yet. Create one for multi-doctor collaboration.</p>
+            ) : (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {careTeams.map((team) => (
+                  <div key={team.id} className="rounded-lg border border-border p-4 hover:bg-muted/30 transition-colors">
+                    <h3 className="font-medium text-card-foreground">{team.name}</h3>
+                    {team.description && <p className="mt-1 text-xs text-muted-foreground">{team.description}</p>}
+                    <div className="mt-2 flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground">Patient: {team.patient_id.slice(0, 8)}…</span>
+                      <span className="text-xs text-muted-foreground">· {team.members?.length || 0} members</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       </main>
 
       {/* Doctor Profile Modal */}
@@ -381,6 +539,63 @@ export default function DoctorDashboard() {
             {submitting ? "Linking..." : "Link Patient"}
           </button>
         </form>
+      </Modal>
+
+      {/* Refer Patient Modal */}
+      <Modal isOpen={showReferralForm} onClose={() => setShowReferralForm(false)} title="Refer Patient to Another Doctor">
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1">Patient ID</label>
+            <input type="text" required value={referralForm.patient_id} onChange={(e) => setReferralForm(f => ({ ...f, patient_id: e.target.value }))}
+              placeholder="Patient profile ID"
+              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1">Referred Doctor ID</label>
+            <input type="text" required value={referralForm.referred_doctor_id} onChange={(e) => setReferralForm(f => ({ ...f, referred_doctor_id: e.target.value }))}
+              placeholder="Doctor profile ID to refer to"
+              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1">Reason</label>
+            <textarea required value={referralForm.reason} onChange={(e) => setReferralForm(f => ({ ...f, reason: e.target.value }))}
+              placeholder="Reason for referral"
+              rows={3}
+              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent resize-none" />
+          </div>
+          <button onClick={handleCreateReferral} disabled={submitting || !referralForm.patient_id || !referralForm.referred_doctor_id || !referralForm.reason}
+            className="w-full rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-white hover:bg-accent/90 disabled:opacity-50 transition-colors">
+            {submitting ? "Sending…" : "Send Referral"}
+          </button>
+        </div>
+      </Modal>
+
+      {/* Create Care Team Modal */}
+      <Modal isOpen={showCareTeamForm} onClose={() => setShowCareTeamForm(false)} title="Create Care Team">
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1">Patient ID</label>
+            <input type="text" required value={careTeamForm.patient_id} onChange={(e) => setCareTeamForm(f => ({ ...f, patient_id: e.target.value }))}
+              placeholder="Patient profile ID"
+              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-secondary" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1">Team Name</label>
+            <input type="text" required value={careTeamForm.name} onChange={(e) => setCareTeamForm(f => ({ ...f, name: e.target.value }))}
+              placeholder="e.g. Cardiac Care Team"
+              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-secondary" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1">Description (optional)</label>
+            <input type="text" value={careTeamForm.description} onChange={(e) => setCareTeamForm(f => ({ ...f, description: e.target.value }))}
+              placeholder="Brief description"
+              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-secondary" />
+          </div>
+          <button onClick={handleCreateCareTeam} disabled={submitting || !careTeamForm.patient_id || !careTeamForm.name}
+            className="w-full rounded-lg bg-secondary px-4 py-2.5 text-sm font-semibold text-white hover:bg-secondary/90 disabled:opacity-50 transition-colors">
+            {submitting ? "Creating…" : "Create Team"}
+          </button>
+        </div>
       </Modal>
     </div>
   );
