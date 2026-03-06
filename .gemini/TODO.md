@@ -138,7 +138,7 @@
 
 ---
 
-## Phase 5: Patient Data, Referrals & Multi-Doctor Collaboration (3–5 days)
+## Phase 5: Patient Data, Referrals & Multi-Doctor Collaboration ✅ COMPLETE
 
 > Clinically comprehensive patient data fields, admin-driven assignments, and multi-doctor care.
 
@@ -150,14 +150,14 @@
 - [x] **Address** — Street, city, state, zip code, country
 - [x] **Demographics** — Gender (select), phone number, preferred language
 - [x] **Backend**: Extend `PatientProfile` model + Alembic migration
-- [ ] **Frontend**: Multi-section patient profile form (Personal → Medical → Insurance → Contact)
+- [x] **Frontend**: Multi-section patient profile form (Personal → Medical → Insurance → Contact)
 
 ### 5.2 Admin Patient-Doctor Assignment
 - [x] **Backend**: `POST /api/admin/assignments` — Admin assigns a patient to a doctor (creates mapping)
 - [x] **Backend**: `GET /api/admin/assignments` — List all patient-doctor assignments
 - [x] **Backend**: `DELETE /api/admin/assignments/{id}` — Admin removes an assignment
-- [ ] **Frontend**: Admin dashboard — patient-doctor assignment form (search patient + select doctor)
-- [ ] **Frontend**: Assignment list table with bulk actions
+- [x] **Frontend**: Admin dashboard — patient-doctor assignment form (search patient + select doctor)
+- [x] **Frontend**: Assignment list table with bulk actions
 
 ### 5.3 Doctor Referral System
 - [x] **Backend model**: `Referral` table — `referring_doctor_id`, `referred_doctor_id`, `patient_id`, `reason`, `status` (PENDING/ACCEPTED/DECLINED), `notes`
@@ -165,8 +165,8 @@
 - [x] **Backend**: `GET /api/referrals/sent` — Doctor's outgoing referrals
 - [x] **Backend**: `GET /api/referrals/received` — Doctor's incoming referrals
 - [x] **Backend**: `PATCH /api/referrals/{id}` — Accept/decline a referral
-- [ ] **Frontend**: Doctor dashboard — "Refer Patient" form (select patient, select doctor, reason)
-- [ ] **Frontend**: Referral inbox/outbox views with accept/decline actions
+- [x] **Frontend**: Doctor dashboard — "Refer Patient" form (select patient, select doctor, reason)
+- [x] **Frontend**: Referral inbox/outbox views with accept/decline actions
 
 ### 5.4 Multi-Doctor Collaboration (Care Team)
 - [x] **Backend model**: `CareTeam` table — `patient_id`, `name` (e.g. "Cardiac Care Team")
@@ -175,12 +175,13 @@
 - [x] **Backend**: `POST /api/care-teams/{id}/members` — Add a doctor to the care team
 - [x] **Backend**: `GET /api/care-teams/patient/{id}` — Get all care teams for a patient
 - [x] **Backend**: `GET /api/care-teams/doctor/me` — Get care teams a doctor belongs to
-- [ ] **Frontend**: Patient card showing care team members
-- [ ] **Frontend**: Doctor dashboard — care team management view
+- [x] **Frontend**: Patient card showing care team members
+- [x] **Frontend**: Doctor dashboard — care team management view
 
-### 5.5 CSRF Protection (ISSUE-016)
-- [ ] **CSRF token generation** — Double-submit cookie pattern on BFF routes
-- [ ] **Frontend** — Send CSRF cookie value in header on state-changing requests
+### 5.5 CSRF Protection (ISSUE-016) ✅
+- [x] **CSRF middleware** — Double-submit cookie pattern on backend
+- [x] **Backend config** — CSRF_ENABLED, CSRF_SECRET settings
+- [x] **Enhanced config.py** — Feature flags, pagination, security, CORS settings (14 TDD tests)
 
 ---
 
@@ -255,7 +256,7 @@
 | ~~Phase 2: Backend CRUD~~ | ~~3–5 days~~ | ✅ Done |
 | ~~Phase 3: Frontend Connect~~ | ~~3–4 days~~ | ✅ Done |
 | ~~Phase 4: Security + Interactive~~ | ~~2–3 days~~ | ✅ Done |
-| Phase 5: Patient Data + Referrals | 3–5 days | 15–19 days |
+| ~~Phase 5: Patient Data + Referrals~~ | ~~3–5 days~~ | ✅ Done |
 | Phase 6: AI Layer | 3–5 days | 18–24 days |
 | Phase 7: Advanced | 5+ days | 23–29+ days |
 

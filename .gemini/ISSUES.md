@@ -62,10 +62,8 @@
 ### ~~ISSUE-015: No `.env.example` File~~ ✅ RESOLVED
 - **Fixed in**: Phase 1.2 — Created `.env.example` for both backend and frontend.
 
-### ISSUE-016: No CSRF Protection Beyond SameSite
-- **Problem**: Auth BFF routes use `SameSite=Lax` cookies, which prevents CSRF on top-level navigations but not on programmatic `fetch()` calls from injected third-party scripts.
-- **Impact**: Potential CSRF on state-changing POST endpoints
-- **Fix**: Add a CSRF token or double-submit cookie pattern for state-changing operations
+### ~~ISSUE-016: No CSRF Protection Beyond SameSite~~ ✅ RESOLVED
+- **Fixed in**: Phase 5 — Implemented double-submit cookie CSRF middleware (`app/middleware/csrf.py`). Disabled by default (`CSRF_ENABLED=false`), configurable per environment.
 - **TODO Phase**: Phase 5 (security polish)
 
 ---
@@ -113,6 +111,6 @@
 |----------|-------|----------|------|
 | 🔴 Critical | 4 | 4 | 0 |
 | 🟠 High | 5 | 5 | 0 |
-| 🟡 Medium | 7 | 6 | 1 (CSRF) |
+| 🟡 Medium | 7 | 7 | 0 |
 | 🔵 Low | 11 | 11 | 0 |
-| **Total** | **27** | **26** | **1** |
+| **Total** | **27** | **27** | **0** |

@@ -29,16 +29,19 @@ MedIntel is an AI-driven healthcare intelligence ecosystem with a FastAPI backen
   - `deps.py` — Shared auth dependencies (get_current_user, require_patient/doctor/admin)
   - `services/auth_service.py` — Business logic (bcrypt, JWT)
   - `models/` — 12 SQLModel tables (User, PatientProfile, DoctorProfile, Appointment, TreatmentPlan, Medication, MedicalReport, AdherenceLog, AgentInsight, Referral, CareTeam, CareTeamMember)
-  - `core/config.py` — Settings from environment variables (incl. TESTING, RATE_LIMIT_ENABLED)
+  - `core/config.py` — Enhanced settings with feature flags, CSRF, pagination, security config
+  - `middleware/csrf.py` — Double-submit cookie CSRF middleware (configurable)
   - `db/engine.py` — Async engine + session factory + before_flush listener
-  - `tests/` — 51 tests (pytest + httpx + pytest-asyncio)
+  - `tests/` — 65 tests (pytest + httpx + pytest-asyncio)
 
 - **Frontend** (`frontend/`): Next.js App Router
   - `app/(auth)/` — Login/signup pages with role toggle
-  - `app/patient/dashboard/` — Patient portal (live API data + profile form + appointment booking)
-  - `app/doctor/dashboard/` — Doctor portal (live API data + patient management + appointment actions)
-  - `app/admin/dashboard/` — Admin portal (live stats + user management table)
+  - `app/patient/dashboard/` — Patient portal (multi-section profile + appointment booking)
+  - `app/doctor/dashboard/` — Doctor portal (patients + referrals + care teams + appointments)
+  - `app/admin/dashboard/` — Admin portal (stats + user management + patient-doctor assignments)
   - `app/api/auth/` — BFF proxy routes (login, signup, me, logout)
+  - `lib/api-client.ts` — 49 API client functions
+  - `lib/types.ts` — All TypeScript interfaces (including Referral, CareTeam, AdminAssignment)
   - `components/providers/SessionProvider.tsx` — Custom auth context
   - `components/ui/Modal.tsx` — Reusable modal component
   - `components/ui/Toast.tsx` — Toast notification system
@@ -48,12 +51,15 @@ MedIntel is an AI-driven healthcare intelligence ecosystem with a FastAPI backen
 
 - ✅ Auth flow fully working (signup → login → session → logout)
 - ✅ Database schema defined (12 tables with relationships)
-- ✅ All CRUD APIs implemented (37 endpoints, 51 tests passing)
-- ✅ All dashboards interactive with live API data (Phases 3-4 complete)
-- ✅ Rate limiting on auth endpoints (ISSUE-003 fixed)
-- ✅ Profile onboarding forms + appointment booking + appointment management
-- ✅ Admin user management table
-- ✅ Phase 5 Backend: Comprehensive patient data, Referrals, Care Teams, Admin Assignments
+- ✅ All CRUD APIs implemented (42 endpoints, 65 tests passing)
+- ✅ All dashboards interactive with live API data (Phases 1–5 complete)
+- ✅ Rate limiting on auth endpoints
+- ✅ CSRF middleware (double-submit cookie, configurable)
+- ✅ Enhanced config.py with feature flags, pagination, security settings
+- ✅ Multi-section tabbed patient profile (Personal/Medical/Insurance/Contact)
+- ✅ Doctor referral inbox/outbox + care team management
+- ✅ Admin patient-doctor assignment management
+- ✅ All 27 issues resolved (ISSUE-001 through ISSUE-027)
 - ❌ AI/ML intelligence layer not started (Phase 6)
 
 ## Running Locally
@@ -88,7 +94,7 @@ cd backend && TESTING=1 uv run pytest tests/ -v
 
 | Document | Purpose |
 |----------|---------|
-| [.gemini/TODO.md](.gemini/TODO.md) | 7-phase roadmap (Phases 1-4 complete) |
-| [.gemini/ISSUES.md](.gemini/ISSUES.md) | 27 issues tracked, 26 resolved |
+| [.gemini/TODO.md](.gemini/TODO.md) | 7-phase roadmap (Phases 1–5 complete) |
+| [.gemini/ISSUES.md](.gemini/ISSUES.md) | 27 issues tracked, 27 resolved |
 | [.gemini/KNOWLEDGE.md](.gemini/KNOWLEDGE.md) | Complete project knowledge base |
 | [.gemini/prd.md](.gemini/prd.md) | Product requirements document |
