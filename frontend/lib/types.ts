@@ -133,17 +133,18 @@ export interface AdminStats {
 }
 
 export interface MappingDoctor {
-    id: string;
+    profile_id: string;
     first_name: string;
     last_name: string;
     specialization: string;
+    mapping_id: string;
 }
 
 export interface MappingPatient {
-    id: string;
+    profile_id: string;
     first_name: string;
     last_name: string;
-    date_of_birth: string;
+    mapping_id: string;
 }
 
 export interface MedicalReport {

@@ -613,7 +613,7 @@ export default function PatientDashboard() {
                   className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary outline-none">
                   <option value="">Choose a doctor...</option>
                   {doctors.map(d => (
-                    <option key={d.id} value={d.id}>Dr. {d.first_name} {d.last_name} — {d.specialization}</option>
+                    <option key={d.profile_id} value={d.profile_id}>Dr. {d.first_name} {d.last_name} — {d.specialization}</option>
                   ))}
                 </select>
               </div>

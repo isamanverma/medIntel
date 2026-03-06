@@ -438,7 +438,7 @@ export default function DoctorDashboard() {
                     </div>
                     <div>
                       <p className="text-sm font-medium text-card-foreground">{p.first_name} {p.last_name}</p>
-                      <p className="text-xs text-muted-foreground">DOB: {new Date(p.date_of_birth).toLocaleDateString()}</p>
+                      <p className="text-xs text-muted-foreground">ID: {p.profile_id.slice(0, 8)}…</p>
                     </div>
                   </div>
                 ))}
