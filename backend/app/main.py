@@ -50,7 +50,7 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
 app = FastAPI(
     title="MedIntel API",
     description="AI-powered healthcare intelligence platform — backend services.",
-    version="0.1.0",
+    version=settings.APP_VERSION,
     lifespan=lifespan,
 )
 
@@ -86,10 +86,18 @@ ALLOWED_ORIGINS = list(dict.fromkeys(ALLOWED_ORIGINS))
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
-    allow_credentials=True,
+    allow_credentials=settings.CORS_ALLOW_CREDENTIALS,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ──────────────────────────────────────────────────────────────────
+#  CSRF Protection (ISSUE-016)
+# ──────────────────────────────────────────────────────────────────
+
+from app.middleware.csrf import CSRFMiddleware  # noqa: E402
+
+app.add_middleware(CSRFMiddleware)
 
 
 # ──────────────────────────────────────────────────────────────────

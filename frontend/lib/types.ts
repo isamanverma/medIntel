@@ -76,6 +76,28 @@ export interface PatientProfile {
     date_of_birth: string;
     blood_group: string | null;
     emergency_contact: string | null;
+    // Demographics
+    gender: string | null;
+    phone: string | null;
+    preferred_language: string | null;
+    // Medical history
+    allergies: string[] | null;
+    chronic_conditions: string[] | null;
+    past_surgeries: string | null;
+    // Vitals
+    height_cm: number | null;
+    weight_kg: number | null;
+    blood_pressure: string | null;
+    // Insurance
+    insurance_provider: string | null;
+    insurance_policy_number: string | null;
+    insurance_group_number: string | null;
+    // Address
+    address_street: string | null;
+    address_city: string | null;
+    address_state: string | null;
+    address_zip: string | null;
+    address_country: string | null;
     created_at: string;
 }
 
@@ -139,3 +161,46 @@ export interface AdherenceStats {
     late: number;
     adherence_percentage: number;
 }
+
+// ── Referrals ────────────────────────────────────────────────────
+
+export interface Referral {
+    id: string;
+    referring_doctor_id: string;
+    referred_doctor_id: string;
+    patient_id: string;
+    reason: string;
+    notes: string | null;
+    status: "PENDING" | "ACCEPTED" | "DECLINED";
+    created_at: string;
+    updated_at: string;
+}
+
+// ── Care Teams ───────────────────────────────────────────────────
+
+export interface CareTeamMember {
+    id: string;
+    doctor_id: string;
+    role: string;
+    joined_at: string;
+}
+
+export interface CareTeam {
+    id: string;
+    patient_id: string;
+    name: string;
+    description: string | null;
+    members: CareTeamMember[];
+    created_at: string;
+}
+
+// ── Admin Assignments ────────────────────────────────────────────
+
+export interface AdminAssignment {
+    id: string;
+    patient_id: string;
+    doctor_id: string;
+    status: string;
+    created_at: string;
+}
+

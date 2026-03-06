@@ -364,3 +364,124 @@ export async function getAdminUsers(): Promise<AdminUser[]> {
   return request<AdminUser[]>("/api/admin/users");
 }
 
+// — Update Patient Profile ——————————————————————————
+
+export async function updatePatientProfile(
+  data: Partial<CreatePatientProfileData & {
+    gender?: string;
+    phone?: string;
+    preferred_language?: string;
+    allergies?: string[];
+    chronic_conditions?: string[];
+    past_surgeries?: string;
+    height_cm?: number;
+    weight_kg?: number;
+    blood_pressure?: string;
+    insurance_provider?: string;
+    insurance_policy_number?: string;
+    insurance_group_number?: string;
+    address_street?: string;
+    address_city?: string;
+    address_state?: string;
+    address_zip?: string;
+    address_country?: string;
+  }>
+): Promise<PatientProfile> {
+  return request<PatientProfile>("/api/profiles/patient/me", {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+}
+
+// — Referrals —————————————————————————————————————
+
+import type { Referral, CareTeam, CareTeamMember, AdminAssignment } from "@/lib/types";
+
+export interface CreateReferralData {
+  referred_doctor_id: string;
+  patient_id: string;
+  reason: string;
+  notes?: string;
+}
+
+export async function createReferral(data: CreateReferralData): Promise<Referral> {
+  return request<Referral>("/api/referrals", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function getSentReferrals(): Promise<Referral[]> {
+  return request<Referral[]>("/api/referrals/sent");
+}
+
+export async function getReceivedReferrals(): Promise<Referral[]> {
+  return request<Referral[]>("/api/referrals/received");
+}
+
+export async function updateReferralStatus(
+  referralId: string,
+  status: "ACCEPTED" | "DECLINED"
+): Promise<Referral> {
+  return request<Referral>(`/api/referrals/${referralId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ status }),
+  });
+}
+
+// — Care Teams ————————————————————————————————————
+
+export interface CreateCareTeamData {
+  patient_id: string;
+  name: string;
+  description?: string;
+}
+
+export async function createCareTeam(data: CreateCareTeamData): Promise<CareTeam> {
+  return request<CareTeam>("/api/care-teams", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function addCareTeamMember(
+  teamId: string,
+  data: { doctor_id: string; role?: string }
+): Promise<CareTeamMember> {
+  return request<CareTeamMember>(`/api/care-teams/${teamId}/members`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function getPatientCareTeams(patientId: string): Promise<CareTeam[]> {
+  return request<CareTeam[]>(`/api/care-teams/patient/${patientId}`);
+}
+
+export async function getDoctorCareTeams(): Promise<CareTeam[]> {
+  return request<CareTeam[]>("/api/care-teams/doctor/me");
+}
+
+// — Admin Assignments —————————————————————————————
+
+export interface CreateAssignmentData {
+  patient_id: string;
+  doctor_id: string;
+}
+
+export async function createAssignment(data: CreateAssignmentData): Promise<AdminAssignment> {
+  return request<AdminAssignment>("/api/admin/assignments", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function getAssignments(): Promise<AdminAssignment[]> {
+  return request<AdminAssignment[]>("/api/admin/assignments");
+}
+
+export async function deleteAssignment(assignmentId: string): Promise<void> {
+  await request<void>(`/api/admin/assignments/${assignmentId}`, {
+    method: "DELETE",
+  });
+}

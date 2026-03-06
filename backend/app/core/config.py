@@ -10,27 +10,60 @@ logger = logging.getLogger(__name__)
 _JWT_SECRET_DEFAULT = "medintel-jwt-secret-change-in-production"
 
 
-class Settings:
-    """Application settings loaded from environment variables."""
+def _bool_env(key: str, default: str = "false") -> bool:
+    """Parse a boolean from an environment variable."""
+    return os.getenv(key, default).lower() in ("1", "true", "yes")
 
+
+class Settings:
+    """Application settings loaded from environment variables.
+
+    All values have sensible defaults for local development.
+    Override via environment variables or a `.env` file.
+    """
+
+    # ── Application Metadata ──────────────────────────────────────
+    APP_NAME: str = os.getenv("APP_NAME", "MedIntel")
+    APP_VERSION: str = os.getenv("APP_VERSION", "1.0.0")
+    ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")  # development | staging | production
+    LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO").upper()
+
+    # ── Database ──────────────────────────────────────────────────
     SUPABASE_URL: str = os.getenv("SUPABASE_URL", "")
     SUPABASE_KEY: str = os.getenv("SUPABASE_KEY", "")
     DATABASE_URL: str = os.getenv("DATABASE_URL", "")
 
-    # ── JWT Configuration ──────────────────────────────────────────
+    # ── JWT Configuration ─────────────────────────────────────────
     JWT_SECRET_KEY: str = os.getenv("JWT_SECRET_KEY", _JWT_SECRET_DEFAULT)
     JWT_ALGORITHM: str = os.getenv("JWT_ALGORITHM", "HS256")
-    # Access token lifetime in minutes (default: 30 minutes)
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(
         os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30")
     )
 
-    # ── Frontend origin (used by CORS and cookie domain logic) ─────
+    # ── Frontend origin (CORS & cookie domain) ────────────────────
     FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:3000")
+    CORS_ALLOW_CREDENTIALS: bool = _bool_env("CORS_ALLOW_CREDENTIALS", "true")
 
     # ── Rate Limiting / Testing ───────────────────────────────────
-    TESTING: bool = os.getenv("TESTING", "").lower() in ("1", "true", "yes")
-    RATE_LIMIT_ENABLED: bool = os.getenv("RATE_LIMIT_ENABLED", "true").lower() not in ("0", "false", "no")
+    TESTING: bool = _bool_env("TESTING")
+    RATE_LIMIT_ENABLED: bool = not _bool_env("RATE_LIMIT_DISABLED")
+
+    # ── CSRF Protection ──────────────────────────────────────────
+    CSRF_ENABLED: bool = _bool_env("CSRF_ENABLED")
+    CSRF_SECRET: str = os.getenv("CSRF_SECRET", os.getenv("JWT_SECRET_KEY", _JWT_SECRET_DEFAULT))
+
+    # ── Security Config ──────────────────────────────────────────
+    MAX_LOGIN_ATTEMPTS: int = int(os.getenv("MAX_LOGIN_ATTEMPTS", "5"))
+    ACCOUNT_LOCKOUT_MINUTES: int = int(os.getenv("ACCOUNT_LOCKOUT_MINUTES", "15"))
+
+    # ── Pagination ───────────────────────────────────────────────
+    DEFAULT_PAGE_SIZE: int = int(os.getenv("DEFAULT_PAGE_SIZE", "20"))
+    MAX_PAGE_SIZE: int = int(os.getenv("MAX_PAGE_SIZE", "100"))
+
+    # ── Feature Flags ────────────────────────────────────────────
+    FEATURE_REFERRALS: bool = _bool_env("FEATURE_REFERRALS", "true")
+    FEATURE_CARE_TEAMS: bool = _bool_env("FEATURE_CARE_TEAMS", "true")
+    FEATURE_AI_INSIGHTS: bool = _bool_env("FEATURE_AI_INSIGHTS", "false")
 
     def __init__(self) -> None:
         if not self.DATABASE_URL:
@@ -49,6 +82,12 @@ class Settings:
                 "Set a strong random secret in .env before deploying."
             )
 
+        if self.ENVIRONMENT == "production" and not self.CSRF_ENABLED:
+            logger.warning(
+                "CSRF protection is disabled in production! "
+                "Set CSRF_ENABLED=true in .env for production deployments."
+            )
+
     @property
     def async_database_url(self) -> str:
         """Convert the sync postgres URL to an async one for asyncpg."""
@@ -64,10 +103,10 @@ class Settings:
         url = self.DATABASE_URL
         if url.startswith("postgres://"):
             url = url.replace("postgres://", "postgresql://", 1)
-        # Strip any +asyncpg or +psycopg2 driver suffix so we get plain postgresql://
         for driver in ["+asyncpg", "+psycopg2"]:
             url = url.replace(driver, "")
         return url
 
 
 settings = Settings()
+

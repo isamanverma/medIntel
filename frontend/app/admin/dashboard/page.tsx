@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/components/providers/SessionProvider";
+import { useToast } from "@/components/ui/Toast";
+import Modal from "@/components/ui/Modal";
 import {
   Activity,
   LogOut,
@@ -12,31 +14,75 @@ import {
   FileText,
   BarChart3,
   Loader2,
+  Link2,
+  Trash2,
+  Plus,
 } from "lucide-react";
 import Link from "next/link";
-import { getAdminStats, getAdminUsers } from "@/lib/api-client";
-import type { AdminStats } from "@/lib/types";
+import {
+  getAdminStats,
+  getAdminUsers,
+  getAssignments,
+  createAssignment,
+  deleteAssignment,
+} from "@/lib/api-client";
+import type { AdminStats, AdminAssignment } from "@/lib/types";
 import type { AdminUser } from "@/lib/api-client";
 
 export default function AdminDashboard() {
   const { session, status, logout } = useAuth();
   const router = useRouter();
+  const { toast } = useToast();
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [users, setUsers] = useState<AdminUser[]>([]);
+  const [assignments, setAssignments] = useState<AdminAssignment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [assignPatientId, setAssignPatientId] = useState("");
+  const [assignDoctorId, setAssignDoctorId] = useState("");
+  const [assigning, setAssigning] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
-      const [statsRes, usersRes] = await Promise.allSettled([
+      const [statsRes, usersRes, assignRes] = await Promise.allSettled([
         getAdminStats(),
         getAdminUsers(),
+        getAssignments(),
       ]);
       if (statsRes.status === "fulfilled") setStats(statsRes.value);
       if (usersRes.status === "fulfilled") setUsers(usersRes.value);
+      if (assignRes.status === "fulfilled") setAssignments(assignRes.value);
     } finally {
       setLoading(false);
     }
   }, []);
+
+  const handleAssign = async () => {
+    if (!assignPatientId || !assignDoctorId) return;
+    setAssigning(true);
+    try {
+      await createAssignment({ patient_id: assignPatientId, doctor_id: assignDoctorId });
+      toast("Patient assigned to doctor successfully", "success");
+      setShowAssignModal(false);
+      setAssignPatientId("");
+      setAssignDoctorId("");
+      await fetchData();
+    } catch (err: unknown) {
+      toast(err instanceof Error ? err.message : "Assignment failed", "error");
+    } finally {
+      setAssigning(false);
+    }
+  };
+
+  const handleDeleteAssignment = async (id: string) => {
+    try {
+      await deleteAssignment(id);
+      toast("Assignment removed", "success");
+      setAssignments((prev) => prev.filter((a) => a.id !== id));
+    } catch (err: unknown) {
+      toast(err instanceof Error ? err.message : "Failed to remove assignment", "error");
+    }
+  };
 
   useEffect(() => {
     if (status === "unauthenticated") router.push("/login?role=admin");
@@ -207,6 +253,101 @@ export default function AdminDashboard() {
             </div>
           </div>
         </div>
+
+        {/* Patient-Doctor Assignments */}
+        <div className="mt-8 rounded-xl border border-border bg-card shadow-sm">
+          <div className="border-b border-border px-6 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Link2 className="h-5 w-5 text-accent" />
+              <h2 className="text-lg font-semibold text-card-foreground">Patient-Doctor Assignments</h2>
+            </div>
+            <button
+              onClick={() => setShowAssignModal(true)}
+              className="flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-accent/90 transition-colors"
+            >
+              <Plus className="h-4 w-4" /> Assign
+            </button>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border bg-muted/50">
+                  <th className="px-6 py-3 text-left font-medium text-muted-foreground">Patient ID</th>
+                  <th className="px-6 py-3 text-left font-medium text-muted-foreground">Doctor ID</th>
+                  <th className="px-6 py-3 text-left font-medium text-muted-foreground">Status</th>
+                  <th className="px-6 py-3 text-left font-medium text-muted-foreground">Created</th>
+                  <th className="px-6 py-3 text-right font-medium text-muted-foreground">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {assignments.length === 0 ? (
+                  <tr><td colSpan={5} className="px-6 py-8 text-center text-muted-foreground">No assignments yet. Click "Assign" to create one.</td></tr>
+                ) : assignments.map((a) => (
+                  <tr key={a.id} className="hover:bg-muted/30 transition-colors">
+                    <td className="px-6 py-3 font-mono text-xs text-card-foreground">{a.patient_id.slice(0, 8)}…</td>
+                    <td className="px-6 py-3 font-mono text-xs text-card-foreground">{a.doctor_id.slice(0, 8)}…</td>
+                    <td className="px-6 py-3">
+                      <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${a.status === "ACTIVE" ? "bg-secondary/10 text-secondary" : "bg-muted text-muted-foreground"}`}>
+                        {a.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-3 text-muted-foreground">
+                      {new Date(a.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                    </td>
+                    <td className="px-6 py-3 text-right">
+                      <button
+                        onClick={() => handleDeleteAssignment(a.id)}
+                        className="rounded-lg p-1.5 text-destructive hover:bg-destructive/10 transition-colors"
+                        title="Remove assignment"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Assign Modal */}
+        <Modal isOpen={showAssignModal} onClose={() => setShowAssignModal(false)} title="Assign Patient to Doctor">
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Patient</label>
+              <select
+                value={assignPatientId}
+                onChange={(e) => setAssignPatientId(e.target.value)}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
+              >
+                <option value="">Select a patient…</option>
+                {users.filter((u) => u.role === "PATIENT").map((u) => (
+                  <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Doctor</label>
+              <select
+                value={assignDoctorId}
+                onChange={(e) => setAssignDoctorId(e.target.value)}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
+              >
+                <option value="">Select a doctor…</option>
+                {users.filter((u) => u.role === "DOCTOR").map((u) => (
+                  <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
+                ))}
+              </select>
+            </div>
+            <button
+              onClick={handleAssign}
+              disabled={assigning || !assignPatientId || !assignDoctorId}
+              className="w-full rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-white hover:bg-accent/90 disabled:opacity-50 transition-colors"
+            >
+              {assigning ? "Assigning…" : "Create Assignment"}
+            </button>
+          </div>
+        </Modal>
       </main>
     </div>
   );
