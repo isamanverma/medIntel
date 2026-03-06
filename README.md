@@ -83,28 +83,31 @@ macOS/Linux:
 medintel/
   backend/
     app/
-      api/                   # All feature endpoints (auth, profiles, appointments, etc.)
+      api/                   # Feature endpoints (auth, profiles, appointments, chat, admin, etc.)
       services/              # Business logic
-      models/                # SQLModel table definitions (12 tables)
-      core/config.py         # Settings from env vars
+      models/                # SQLModel table definitions (15 tables)
+      core/config.py         # Enhanced settings with feature flags
+      middleware/csrf.py     # Double-submit cookie CSRF middleware
       db/engine.py           # Async database engine
     alembic/                 # Database migrations
-    tests/                   # Pytest suite (51 tests)
+    tests/                   # Pytest suite (76 tests)
     pyproject.toml
 
   frontend/
     app/
-      (auth)/                # Login, signup pages
-      patient/dashboard/     # Patient portal
-      doctor/dashboard/      # Doctor portal
-      admin/dashboard/       # Admin portal
+      (auth)/                # Login, signup pages with role validation
+      patient/dashboard/     # Patient portal (profile + appointments + chat)
+      doctor/dashboard/      # Doctor portal (patients + referrals + care teams + chat)
+      admin/dashboard/       # Admin portal (stats + controls + assignments + chat)
       api/auth/              # BFF proxy routes (login, signup, me, logout)
     components/
       providers/SessionProvider.tsx  # Auth context
-      ui/                    # Navbar, Footer
+      chat/SecureChat.tsx    # Reusable secure chat component
+      ui/                    # Navbar, Footer, Modal, Toast
     lib/
-      api-client.ts          # Typed fetch wrapper for backend calls
-    middleware.ts             # JWT-based route protection
+      api-client.ts          # Typed fetch wrapper (57 functions)
+      types.ts               # All shared TypeScript interfaces
+    proxy.ts                 # JWT-based route protection
 ```
 
 ## How Auth Works
@@ -150,10 +153,10 @@ All project docs live under `.gemini/`:
 
 | File | What it is |
 |------|-----------|
-| `TODO.md` | Phased roadmap (7 phases, cleanup to AI) |
-| `ISSUES.md` | 25 known issues ranked by severity |
-| `KNOWLEDGE.md` | Full technical knowledge base |
-| `prd.md` | Product requirements |
+| `TODO.md` | 7-phase roadmap (Phases 1–5b complete) |
+| `ISSUES.md` | 31 issues tracked, all 31 resolved |
+| `KNOWLEDGE.md` | Complete technical knowledge base |
+| `prd.md` | Product requirements document |
 
 ## Common Issues
 

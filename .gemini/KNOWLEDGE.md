@@ -10,7 +10,7 @@
 |-----|-------|
 | Name | MedIntel |
 | Type | AI-powered healthcare intelligence platform |
-| Stage | Production-ready backend, interactive dashboards (Phases 1-4 complete) |
+| Stage | Production-ready backend, interactive dashboards (Phases 1–5b complete) |
 | User Roles | Patient, Doctor, Admin |
 | Monorepo | `backend/` (FastAPI) + `frontend/` (Next.js) |
 
@@ -28,6 +28,7 @@
 | Migrations | Alembic | latest |
 | Password Hash | bcrypt | latest |
 | JWT | python-jose | latest |
+| Rate Limiting | slowapi | latest |
 | Python | 3.13+ | 3.13 |
 | Package Manager | uv | latest |
 
@@ -45,19 +46,22 @@
 
 ## 3. Architecture Patterns
 
-### Authentication Flow (Hybrid BFF)
+### Authentication Flow (Hybrid BFF + Role Validation)
 ```
 Browser → Next.js BFF (/api/auth/*) → FastAPI (/api/auth/*)
+                ↓
+    Validates user role matches expected_role
                 ↓
     Sets HttpOnly cookie (JWT)
                 ↓
     Returns UserPublic only (no token exposed)
 ```
 
-1. **Signup/Login**: Browser → BFF API route → forwards to FastAPI → BFF extracts JWT, sets HttpOnly cookie, returns user payload only
-2. **Session Check**: `SessionProvider` calls `/api/auth/me` → BFF reads cookie → forwards as Bearer token to FastAPI → returns user data
-3. **Logout**: BFF sets `maxAge: 0` on the cookie to expire it
-4. **Middleware**: Reads JWT from cookie, decodes payload (no signature verification), redirects based on role
+1. **Signup/Login**: Browser → BFF API route → forwards to FastAPI (with `expected_role`) → BFF extracts JWT, sets HttpOnly cookie, returns user payload only
+2. **Role Validation**: Login rejects if user.role ≠ expected_role (e.g., Doctor cannot login via Admin portal)
+3. **Session Check**: `SessionProvider` calls `/api/auth/me` → BFF reads cookie → forwards as Bearer token to FastAPI → returns user data
+4. **Logout**: BFF sets `maxAge: 0` on the cookie to expire it
+5. **Middleware**: Reads JWT from cookie, decodes payload (no signature verification), redirects based on role
 
 ### Data Flow
 ```
@@ -68,21 +72,22 @@ For data APIs (not auth), the browser talks directly to FastAPI with the HttpOnl
 ### Layer Separation
 | Layer | Location | Responsibility |
 |-------|----------|----------------|
-| HTTP | `api/auth.py` | Parse requests, return responses |
+| HTTP | `api/*.py` | Parse requests, return responses |
 | Business Logic | `services/auth_service.py` | Hashing, JWT, DB queries |
 | Data | `models/*.py` | SQLModel table definitions |
-| Config | `core/config.py` | Environment variables |
+| Config | `core/config.py` | Environment variables + feature flags |
+| Security | `middleware/csrf.py` | CSRF double-submit cookie |
 | Database | `db/engine.py` | Async engine, session factory |
 
 ---
 
 ## 4. Database Schema
 
-### Tables (9 total)
+### Tables (15 total)
 | Table | Purpose | Key Relations |
 |-------|---------|---------------|
 | `users` | Core auth data | parent of profiles |
-| `patient_profiles` | Extended patient info | FK → users |
+| `patient_profiles` | Extended patient info (medical, insurance, address) | FK → users |
 | `doctor_profiles` | Extended doctor info | FK → users |
 | `patient_doctor_mappings` | Who treats whom | FK → patient_profiles, doctor_profiles |
 | `appointments` | Scheduled visits | FK → patient_profiles, doctor_profiles |
@@ -91,12 +96,19 @@ For data APIs (not auth), the browser talks directly to FastAPI with the HttpOnl
 | `adherence_logs` | Dose tracking | FK → medications, patient_profiles |
 | `medical_reports` | Uploaded docs | FK → patient_profiles, users |
 | `agent_insights` | AI analysis results | FK → patient_profiles |
+| `referrals` | Doctor-to-doctor referrals | FK → doctor_profiles, patient_profiles |
+| `care_teams` | Multi-doctor teams per patient | FK → patient_profiles |
+| `care_team_members` | Doctors in a care team | FK → care_teams, doctor_profiles |
+| `chat_rooms` | Secure chat rooms (DIRECT/GROUP) | FK → users (created_by) |
+| `chat_participants` | Users in a chat room | FK → chat_rooms, users |
+| `chat_messages` | Immutable messages (admin soft-delete) | FK → chat_rooms, users |
 
 ### Design Conventions
 - **Primary keys**: UUID with `server_default=text("gen_random_uuid()")`
 - **Timestamps**: `created_at` and `updated_at` with `timezone=True`
 - **Enums**: Centralized in `models/enums.py` (UserRole, AppointmentStatus, etc.)
 - **SA Columns**: Use `sa_column=Column(...)` for full SQLAlchemy control
+- **Chat Immutability**: Messages cannot be edited/deleted by users; admin-only soft-delete via `is_deleted` flag
 
 ---
 
@@ -112,6 +124,10 @@ For data APIs (not auth), the browser talks directly to FastAPI with the HttpOnl
 | `JWT_ALGORITHM` | ❌ | `HS256` | JWT algorithm |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | ❌ | `30` | Token TTL |
 | `FRONTEND_URL` | ❌ | `http://localhost:3000` | CORS allowed origin |
+| `TESTING` | ❌ | `false` | Disables rate limiting in test mode |
+| `RATE_LIMIT_ENABLED` | ❌ | `true` | Toggle rate limiting |
+| `CSRF_ENABLED` | ❌ | `false` | Toggle CSRF middleware |
+| `CSRF_SECRET` | ❌ | auto-generated | CSRF cookie signing secret |
 
 ### Frontend (`frontend/.env.local`)
 | Variable | Required | Purpose |
@@ -123,46 +139,52 @@ For data APIs (not auth), the browser talks directly to FastAPI with the HttpOnl
 
 ## 6. File Inventory
 
-### Backend (20+ active files)
-| File | LOC | Purpose |
-|------|-----|---------|
-| `main.py` | 103 | App entry, CORS, lifespan, routers |
-| `api/auth.py` | 183 | Auth HTTP endpoints |
-| `api/profiles.py` | ~180 | Patient/Doctor profile CRUD (6 routes) |
-| `api/appointments.py` | ~180 | Appointment management (5 routes) |
-| `api/mappings.py` | ~120 | Patient-Doctor relationships (4 routes) |
-| `api/treatments.py` | ~140 | Treatment plans + medications (4 routes) |
-| `api/reports.py` | ~100 | Medical report metadata (3 routes) |
-| `api/adherence.py` | ~100 | Medication adherence tracking (3 routes) |
-| `api/admin.py` | ~120 | Admin stats + user list (2 routes) |
-| `deps.py` | ~60 | Shared auth dependencies |
-| `services/auth_service.py` | 280 | Auth business logic |
-| `core/config.py` | ~75 | Settings from env (TESTING, RATE_LIMIT_ENABLED) |
-| `db/engine.py` | 100 | Async engine + sessions + before_flush listener |
-| `models/*.py` | ~600 | 9 SQLModel tables |
-| `tests/*.py` | ~400 | 35 tests (auth, profiles, appointments, admin) |
+### Backend (25+ active files)
+| File | Purpose |
+|------|---------|
+| `main.py` | App entry, CORS, CSRF, lifespan, routers |
+| `api/auth.py` | Auth HTTP endpoints (signup, login with role validation, me) |
+| `api/profiles.py` | Patient/Doctor profile CRUD (6 routes) |
+| `api/appointments.py` | Appointment management (5 routes) |
+| `api/mappings.py` | Patient-Doctor relationships (4 routes) |
+| `api/treatments.py` | Treatment plans + medications (4 routes) |
+| `api/reports.py` | Medical report metadata (3 routes) |
+| `api/adherence.py` | Medication adherence tracking (3 routes) |
+| `api/admin.py` | Admin stats, user list, assignments, user controls (8 routes) |
+| `api/referrals.py` | Doctor-to-doctor referrals (4 routes) |
+| `api/care_teams.py` | Multi-doctor care teams (4 routes) |
+| `api/chat.py` | Secure chat rooms + messages (5 routes) |
+| `deps.py` | Shared auth dependencies |
+| `services/auth_service.py` | Auth business logic (bcrypt, JWT) |
+| `core/config.py` | Enhanced settings with feature flags, CSRF, pagination |
+| `middleware/csrf.py` | Double-submit cookie CSRF middleware |
+| `db/engine.py` | Async engine + sessions + before_flush listener |
+| `models/*.py` | 15 SQLModel tables |
+| `tests/*.py` | 76 tests (auth, profiles, appointments, admin, chat, config, role login) |
 
-### Frontend (23+ files)
-| File | LOC | Purpose |
-|------|-----|---------|
-| `app/layout.tsx` | 47 | Root layout, fonts, SessionProvider, ToastProvider |
-| `app/page.tsx` | 273 | Landing/marketing page |
-| `app/(auth)/login/page.tsx` | 308 | Login form with role toggle |
-| `app/(auth)/signup/page.tsx` | 414 | Signup form with validation |
-| `app/patient/dashboard/page.tsx` | ~430 | Patient portal (profile form + appointment booking) |
-| `app/doctor/dashboard/page.tsx` | ~400 | Doctor portal (add patient + appointment actions) |
-| `app/admin/dashboard/page.tsx` | ~300 | Admin portal (stats + user management table) |
-| `app/api/auth/login/route.ts` | 122 | BFF login proxy |
-| `app/api/auth/signup/route.ts` | 140 | BFF signup proxy |
-| `app/api/auth/me/route.ts` | 86 | BFF session check |
-| `app/api/auth/logout/route.ts` | 57 | BFF logout (cookie expiry) |
-| `components/providers/SessionProvider.tsx` | 184 | Auth context provider |
-| `components/ui/Navbar.tsx` | 207 | Global navbar |
-| `components/ui/Footer.tsx` | 135 | Global footer |
-| `components/ui/Modal.tsx` | ~80 | Reusable modal (escape, backdrop, scroll lock) |
-| `components/ui/Toast.tsx` | ~95 | Toast notification system (success/error/info) |
-| `lib/api-client.ts` | ~370 | Typed fetch wrapper + 13 mutation functions |
-| `proxy.ts` | 159 | JWT route protection |
+### Frontend (25+ files)
+| File | Purpose |
+|------|---------|
+| `app/layout.tsx` | Root layout, fonts, SessionProvider, ToastProvider |
+| `app/page.tsx` | Landing/marketing page |
+| `app/(auth)/login/page.tsx` | Login form with explicit role validation |
+| `app/(auth)/signup/page.tsx` | Signup form with validation |
+| `app/patient/dashboard/page.tsx` | Patient portal (profile + appointments + chat) |
+| `app/doctor/dashboard/page.tsx` | Doctor portal (patients + referrals + care teams + chat) |
+| `app/admin/dashboard/page.tsx` | Admin portal (stats + controls + assignments + chat) |
+| `app/api/auth/login/route.ts` | BFF login proxy (forwards role) |
+| `app/api/auth/signup/route.ts` | BFF signup proxy |
+| `app/api/auth/me/route.ts` | BFF session check |
+| `app/api/auth/logout/route.ts` | BFF logout (cookie expiry) |
+| `components/providers/SessionProvider.tsx` | Auth context provider |
+| `components/chat/SecureChat.tsx` | Reusable real-time secure chat UI |
+| `components/ui/Navbar.tsx` | Global navbar |
+| `components/ui/Footer.tsx` | Global footer |
+| `components/ui/Modal.tsx` | Reusable modal (escape, backdrop, scroll lock) |
+| `components/ui/Toast.tsx` | Toast notification system (success/error/info) |
+| `lib/api-client.ts` | Typed fetch wrapper + 57 API client functions |
+| `lib/types.ts` | All shared TypeScript interfaces |
+| `proxy.ts` | JWT route protection |
 
 ---
 
@@ -175,13 +197,14 @@ uv sync                                          # Install dependencies
 uv run uvicorn app.main:app --reload              # Dev server on :8000
 uv run alembic upgrade head                       # Run migrations
 uv run alembic revision --autogenerate -m "msg"   # Create migration
+TESTING=1 uv run pytest tests/ -v                 # Run tests (rate limiting disabled)
 
 # ── Frontend ──
 cd frontend
 npm install                                       # Install dependencies
 npm run dev                                       # Dev server on :3000
 npm run build                                     # Production build
-npm run lint                                      # Biome lint
+npx tsc --noEmit                                  # Type check
 
 # ── Both at once (Windows) ──
 .\dev.ps1                                         # Launches both in separate terminals
@@ -205,13 +228,13 @@ npm run lint                                      # Biome lint
 
 ---
 
-## 9. API Endpoints (37 total)
+## 9. API Endpoints (50 total)
 
 ### Auth (3 routes)
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | POST | `/api/auth/signup` | ❌ | Create user, return token |
-| POST | `/api/auth/login` | ❌ | Verify creds, return token |
+| POST | `/api/auth/login` | ❌ | Verify creds + role, return token |
 | GET | `/api/auth/me` | ✅ Bearer | Get current user profile |
 
 ### Profiles (6 routes)
@@ -263,14 +286,17 @@ npm run lint                                      # Biome lint
 | GET | `/api/adherence/history/{patient_id}` | Any |
 | GET | `/api/adherence/stats/{patient_id}` | Any |
 
-### Admin (5 routes)
-| Method | Path | Auth |
-|--------|------|------|
-| GET | `/api/admin/stats` | Admin |
-| GET | `/api/admin/users` | Admin |
-| POST | `/api/admin/assignments` | Admin |
-| GET | `/api/admin/assignments` | Admin |
-| DELETE | `/api/admin/assignments/{id}` | Admin |
+### Admin (8 routes)
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/api/admin/stats` | Admin | Platform statistics |
+| GET | `/api/admin/users` | Admin | List all users |
+| POST | `/api/admin/assignments` | Admin | Assign patient to doctor |
+| GET | `/api/admin/assignments` | Admin | List assignments |
+| DELETE | `/api/admin/assignments/{id}` | Admin | Remove assignment |
+| PATCH | `/api/admin/users/{id}/role` | Admin | Change user role |
+| PATCH | `/api/admin/users/{id}/status` | Admin | Activate/deactivate user |
+| DELETE | `/api/admin/users/{id}` | Admin | Hard delete user |
 
 ### Referrals (4 routes)
 | Method | Path | Auth |
@@ -287,6 +313,15 @@ npm run lint                                      # Biome lint
 | POST | `/api/care-teams/{id}/members` | Doctor |
 | GET | `/api/care-teams/patient/{id}` | Any |
 | GET | `/api/care-teams/doctor/me` | Doctor |
+
+### Secure Chat (5 routes)
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| POST | `/api/chat/rooms` | Any | Create chat room |
+| GET | `/api/chat/rooms` | Any | List my rooms |
+| POST | `/api/chat/rooms/{id}/messages` | Participant | Send message |
+| GET | `/api/chat/rooms/{id}/messages` | Participant | Get message history |
+| DELETE | `/api/chat/rooms/{id}/messages/{msg_id}` | Admin | Soft-delete message |
 
 ### BFF Proxy Routes (Frontend)
 | Method | Path | Description |
@@ -318,9 +353,10 @@ Defined in `frontend/app/globals.css` via CSS custom properties with Tailwind v4
 
 ## 11. Project Rules & Constraints
 
-1. **300 LOC limit** — No file exceeds 300 lines of code
-2. **SRP** — Single responsibility per module
-3. **Business logic in backend only** — Frontend is display + routing
-4. **Zero cost** — All services must use free tiers (Supabase, Ollama, Vercel/Render)
-5. **uv for Python** — All Python commands use `uv run` / `uv sync`
-6. **Git Bash terminal** — Default shell is Git Bash on Windows
+1. **SRP** — Single responsibility per module
+2. **Business logic in backend only** — Frontend is display + routing
+3. **Zero cost** — All services must use free tiers (Supabase, Gemini, Vercel/Render)
+4. **uv for Python** — All Python commands use `uv run` / `uv sync`
+5. **Git Bash terminal** — Default shell is Git Bash on Windows
+6. **TDD approach** — Tests written before or alongside implementation
+7. **Immutable chat** — Users cannot edit/delete messages; admin soft-delete only
