@@ -28,7 +28,7 @@ router = APIRouter(prefix="/mappings", tags=["mappings"])
 
 class MappingCreate(BaseModel):
     patient_id: uuid.UUID
-    doctor_id: uuid.UUID
+    doctor_id: uuid.UUID | None = None
 
 
 class MappingResponse(BaseModel):
@@ -74,12 +74,31 @@ async def create_mapping(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> MappingResponse:
-    """Create a patient-doctor mapping."""
+    """Create a patient-doctor mapping.
+
+    If the caller is a doctor and `doctor_id` is omitted, it is
+    automatically resolved from the logged-in user's profile.
+    """
+    # Auto-resolve doctor_id when not provided and caller is a doctor
+    doctor_id = body.doctor_id
+    if doctor_id is None:
+        if user.role != UserRole.DOCTOR:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="doctor_id is required for non-doctor users",
+            )
+        result = await session.execute(
+            select(DoctorProfile.id).where(DoctorProfile.user_id == user.id)
+        )
+        doctor_id = result.scalar_one_or_none()
+        if not doctor_id:
+            raise HTTPException(status_code=404, detail="Doctor profile not found. Complete your profile first.")
+
     # Verify both profiles exist
     patient = await session.get(PatientProfile, body.patient_id)
     if not patient:
         raise HTTPException(status_code=404, detail="Patient profile not found")
-    doctor = await session.get(DoctorProfile, body.doctor_id)
+    doctor = await session.get(DoctorProfile, doctor_id)
     if not doctor:
         raise HTTPException(status_code=404, detail="Doctor profile not found")
 
@@ -87,7 +106,7 @@ async def create_mapping(
     result = await session.execute(
         select(PatientDoctorMapping).where(
             PatientDoctorMapping.patient_id == body.patient_id,
-            PatientDoctorMapping.doctor_id == body.doctor_id,
+            PatientDoctorMapping.doctor_id == doctor_id,
             PatientDoctorMapping.status == MappingStatus.ACTIVE,
         )
     )
@@ -99,7 +118,7 @@ async def create_mapping(
 
     mapping = PatientDoctorMapping(
         patient_id=body.patient_id,
-        doctor_id=body.doctor_id,
+        doctor_id=doctor_id,
         status=MappingStatus.ACTIVE,
     )
     session.add(mapping)
