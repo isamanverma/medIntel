@@ -23,12 +23,31 @@
 
 // ---------------------------------------------------------------------------
 //  Backend base URL
+//
+//  Client-side (browser): use RELATIVE URLs so requests go through the
+//  Next.js rewrite proxy → same domain → HttpOnly cookie included.
+//
+//  Server-side (BFF API routes): use the ABSOLUTE backend URL because
+//  Next.js API routes run on the server and don't have cookies.
 // ---------------------------------------------------------------------------
 
-const BACKEND_URL: string =
+const ABSOLUTE_BACKEND_URL: string =
   process.env.NEXT_PUBLIC_BACKEND_URL ??
   process.env.BACKEND_URL ??
   "http://localhost:8000";
+
+/**
+ * Returns "" (empty string = relative URL) on client-side so requests
+ * hit the Next.js rewrite proxy, or the absolute URL on server-side.
+ */
+function getBaseUrl(): string {
+  if (typeof window !== "undefined") {
+    // Browser: use relative path → Next.js proxy → backend
+    return "";
+  }
+  // Server (BFF routes): call backend directly
+  return ABSOLUTE_BACKEND_URL;
+}
 
 // ---------------------------------------------------------------------------
 //  Re-export shared types for convenience
@@ -81,7 +100,7 @@ export class BackendError extends Error {
  * @param options — standard `RequestInit` overrides
  */
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const url = `${BACKEND_URL}${path}`;
+  const url = `${getBaseUrl()}${path}`;
 
   const res = await fetch(url, {
     ...options,
