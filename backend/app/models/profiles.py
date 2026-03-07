@@ -3,7 +3,7 @@ from datetime import date
 from typing import Optional, List, TYPE_CHECKING
 
 from sqlmodel import SQLModel, Field, Relationship
-from sqlalchemy import Column, String, JSON
+from sqlalchemy import Column, String, JSON, Text
 
 if TYPE_CHECKING:
     from app.models.user import User
@@ -44,6 +44,16 @@ class PatientProfile(SQLModel, table=True):
     allergies: Optional[list] = Field(default=None, sa_column=Column(JSON, nullable=True))
     chronic_conditions: Optional[list] = Field(default=None, sa_column=Column(JSON, nullable=True))
     past_surgeries: Optional[str] = Field(default=None, max_length=500)
+
+    # ── AI-Powered Condition Discovery ────────────────────────────
+    condition_description: Optional[str] = Field(
+        default=None,
+        sa_column=Column(Text, nullable=True),
+    )
+    condition_tags: Optional[list] = Field(
+        default=None,
+        sa_column=Column(JSON, nullable=True),
+    )
 
     # ── Vitals ────────────────────────────────────────────────────
     height_cm: Optional[float] = Field(default=None)

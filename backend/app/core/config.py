@@ -65,6 +65,9 @@ class Settings:
     FEATURE_CARE_TEAMS: bool = _bool_env("FEATURE_CARE_TEAMS", "true")
     FEATURE_AI_INSIGHTS: bool = _bool_env("FEATURE_AI_INSIGHTS", "false")
 
+    # ── AI / LLM ─────────────────────────────────────────────────
+    GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
+
     def __init__(self) -> None:
         if not self.DATABASE_URL:
             raise ValueError(
@@ -109,4 +112,3 @@ class Settings:
 
 
 settings = Settings()
-

@@ -6,10 +6,11 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.engine import get_session
@@ -60,9 +61,116 @@ class DoctorListItem(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class PatientDiscoveryItem(BaseModel):
+    """Lightweight patient record returned by the discovery search."""
+    profile_id: uuid.UUID
+    first_name: str
+    last_name: str
+    blood_group: Optional[str] = None
+    gender: Optional[str] = None
+    age: Optional[int] = None          # derived from date_of_birth server-side
+    already_linked: bool = False
+    condition_tags: Optional[list[str]] = None
+
+    model_config = {"from_attributes": True}
+
+
 # ──────────────────────────────────────────────────────────────────
 #  Routes
 # ──────────────────────────────────────────────────────────────────
+
+
+@router.get("/discover-patients", response_model=list[PatientDiscoveryItem])
+async def discover_patients(
+    q: Optional[str] = Query(None, description="Search by first or last name (case-insensitive)"),
+    blood_group: Optional[str] = Query(None, description="Filter by blood group (e.g. A+, O-)"),
+    gender: Optional[str] = Query(None, description="Filter by gender"),
+    tag: Optional[str] = Query(None, description="Filter by condition tag (e.g. migraine, epilepsy)"),
+    limit: int = Query(20, ge=1, le=100, description="Max results to return"),
+    user: User = Depends(require_doctor),
+    session: AsyncSession = Depends(get_session),
+) -> list[PatientDiscoveryItem]:
+    """Search all patient profiles for the patient discovery modal.
+
+    Returns patients with an ``already_linked`` flag so the frontend can
+    show a disabled/check state for patients the doctor has already added.
+    Supports filtering by condition tag (AI-generated from patient descriptions).
+    Requires a verified doctor account.
+    """
+    # 1. Resolve the calling doctor's profile ID
+    result = await session.execute(
+        select(DoctorProfile.id).where(DoctorProfile.user_id == user.id)
+    )
+    doctor_profile_id = result.scalar_one_or_none()
+    if not doctor_profile_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Doctor profile not found. Complete your profile first.",
+        )
+
+    # 2. Fetch the set of patient_ids already actively linked to this doctor
+    linked_result = await session.execute(
+        select(PatientDoctorMapping.patient_id).where(
+            PatientDoctorMapping.doctor_id == doctor_profile_id,
+            PatientDoctorMapping.status == MappingStatus.ACTIVE,
+        )
+    )
+    linked_ids: set[uuid.UUID] = {row for row in linked_result.scalars().all()}
+
+    # 3. Build the patient query with optional filters
+    stmt = select(PatientProfile)
+
+    if q and q.strip():
+        term = f"%{q.strip().lower()}%"
+        stmt = stmt.where(
+            or_(
+                func.lower(PatientProfile.first_name).like(term),
+                func.lower(PatientProfile.last_name).like(term),
+            )
+        )
+
+    if blood_group and blood_group.strip():
+        stmt = stmt.where(PatientProfile.blood_group == blood_group.strip())
+
+    if gender and gender.strip():
+        stmt = stmt.where(func.lower(PatientProfile.gender).like(gender.strip().lower()))
+
+    if tag and tag.strip():
+        # Use JSON containment-style search: check if any element in the
+        # condition_tags JSON array matches the requested tag (case-insensitive).
+        # We cast the JSON column to text and use ILIKE for broad compatibility
+        # with both Supabase/PostgreSQL.
+        from sqlalchemy import cast, Text as SAText
+        tag_term = f'%"{tag.strip().lower()}"%'
+        stmt = stmt.where(
+            func.lower(cast(PatientProfile.condition_tags, SAText)).like(tag_term)
+        )
+
+    stmt = stmt.order_by(PatientProfile.first_name, PatientProfile.last_name).limit(limit)
+
+    patients_result = await session.execute(stmt)
+    patients = patients_result.scalars().all()
+
+    # 4. Build the response, computing age from date_of_birth
+    from datetime import date as date_type
+
+    def _calc_age(dob: date_type) -> int:
+        today = date_type.today()
+        return today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+
+    return [
+        PatientDiscoveryItem(
+            profile_id=p.id,
+            first_name=p.first_name,
+            last_name=p.last_name,
+            blood_group=p.blood_group,
+            gender=p.gender,
+            age=_calc_age(p.date_of_birth) if p.date_of_birth else None,
+            already_linked=p.id in linked_ids,
+            condition_tags=p.condition_tags or [],
+        )
+        for p in patients
+    ]
 
 @router.post(
     "",

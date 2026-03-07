@@ -179,7 +179,6 @@ export async function getMe(): Promise<UserPublic> {
   });
 }
 
-
 // ---------------------------------------------------------------------------
 //  Domain API — called directly from the browser (client-side)
 // ---------------------------------------------------------------------------
@@ -193,6 +192,7 @@ import type {
   MappingPatient,
   MedicalReport,
   AdherenceStats,
+  PatientDiscoveryResult,
 } from "@/lib/types";
 
 // — Profiles ——————————————————————————————————————
@@ -225,15 +225,58 @@ export async function getMyPatients(): Promise<MappingPatient[]> {
   return request<MappingPatient[]>("/api/mappings/my-patients");
 }
 
+// — Patient Discovery ————————————————————————————
+
+export interface DiscoverPatientsParams {
+  q?: string;
+  blood_group?: string;
+  gender?: string;
+  tag?: string;
+  limit?: number;
+}
+
+export async function discoverPatients(
+  params: DiscoverPatientsParams = {},
+): Promise<PatientDiscoveryResult[]> {
+  const qs = new URLSearchParams();
+  if (params.q) qs.set("q", params.q);
+  if (params.blood_group) qs.set("blood_group", params.blood_group);
+  if (params.gender) qs.set("gender", params.gender);
+  if (params.tag) qs.set("tag", params.tag);
+  if (params.limit !== undefined) qs.set("limit", String(params.limit));
+  const query = qs.toString();
+  return request<PatientDiscoveryResult[]>(
+    `/api/mappings/discover-patients${query ? `?${query}` : ""}`,
+  );
+}
+
+// — AI Tag Generation ————————————————————————————
+
+export async function generateConditionTags(
+  description: string,
+): Promise<import("@/lib/types").GenerateTagsResponse> {
+  return request<import("@/lib/types").GenerateTagsResponse>(
+    "/api/profiles/patient/generate-tags",
+    {
+      method: "POST",
+      body: JSON.stringify({ description }),
+    },
+  );
+}
+
 // — Reports ——————————————————————————————————————
 
-export async function getMyReports(patientId: string): Promise<MedicalReport[]> {
+export async function getMyReports(
+  patientId: string,
+): Promise<MedicalReport[]> {
   return request<MedicalReport[]>(`/api/reports/patient/${patientId}`);
 }
 
 // — Adherence —————————————————————————————————————
 
-export async function getAdherenceStats(patientId: string): Promise<AdherenceStats> {
+export async function getAdherenceStats(
+  patientId: string,
+): Promise<AdherenceStats> {
   return request<AdherenceStats>(`/api/adherence/stats/${patientId}`);
 }
 
@@ -242,7 +285,6 @@ export async function getAdherenceStats(patientId: string): Promise<AdherenceSta
 export async function getAdminStats(): Promise<AdminStats> {
   return request<AdminStats>("/api/admin/stats");
 }
-
 
 // ---------------------------------------------------------------------------
 //  Mutation API — POST / PATCH / DELETE (called from forms)
@@ -259,7 +301,7 @@ export interface CreatePatientProfileData {
 }
 
 export async function createPatientProfile(
-  data: CreatePatientProfileData
+  data: CreatePatientProfileData,
 ): Promise<PatientProfile> {
   return request<PatientProfile>("/api/profiles/patient", {
     method: "POST",
@@ -275,7 +317,7 @@ export interface CreateDoctorProfileData {
 }
 
 export async function createDoctorProfile(
-  data: CreateDoctorProfileData
+  data: CreateDoctorProfileData,
 ): Promise<DoctorProfile> {
   return request<DoctorProfile>("/api/profiles/doctor", {
     method: "POST",
@@ -293,7 +335,7 @@ export interface CreateAppointmentData {
 }
 
 export async function createAppointment(
-  data: CreateAppointmentData
+  data: CreateAppointmentData,
 ): Promise<Appointment> {
   return request<Appointment>("/api/appointments", {
     method: "POST",
@@ -304,7 +346,7 @@ export async function createAppointment(
 export async function updateAppointmentStatus(
   appointmentId: string,
   status: string,
-  meeting_notes?: string
+  meeting_notes?: string,
 ): Promise<Appointment> {
   return request<Appointment>(`/api/appointments/${appointmentId}/status`, {
     method: "PATCH",
@@ -319,7 +361,7 @@ export interface CreateMappingData {
 }
 
 export async function createMapping(
-  data: CreateMappingData
+  data: CreateMappingData,
 ): Promise<{ id: string }> {
   return request<{ id: string }>("/api/mappings", {
     method: "POST",
@@ -354,7 +396,7 @@ export interface TreatmentPlan {
 }
 
 export async function createTreatmentPlan(
-  data: CreateTreatmentPlanData
+  data: CreateTreatmentPlanData,
 ): Promise<TreatmentPlan> {
   return request<TreatmentPlan>("/api/treatment-plans", {
     method: "POST",
@@ -363,7 +405,7 @@ export async function createTreatmentPlan(
 }
 
 export async function getPatientTreatmentPlans(
-  patientId: string
+  patientId: string,
 ): Promise<TreatmentPlan[]> {
   return request<TreatmentPlan[]>(`/api/treatment-plans/patient/${patientId}`);
 }
@@ -386,25 +428,29 @@ export async function getAdminUsers(): Promise<AdminUser[]> {
 // — Update Patient Profile ——————————————————————————
 
 export async function updatePatientProfile(
-  data: Partial<CreatePatientProfileData & {
-    gender?: string;
-    phone?: string;
-    preferred_language?: string;
-    allergies?: string[];
-    chronic_conditions?: string[];
-    past_surgeries?: string;
-    height_cm?: number;
-    weight_kg?: number;
-    blood_pressure?: string;
-    insurance_provider?: string;
-    insurance_policy_number?: string;
-    insurance_group_number?: string;
-    address_street?: string;
-    address_city?: string;
-    address_state?: string;
-    address_zip?: string;
-    address_country?: string;
-  }>
+  data: Partial<
+    CreatePatientProfileData & {
+      gender?: string;
+      phone?: string;
+      preferred_language?: string;
+      allergies?: string[];
+      chronic_conditions?: string[];
+      past_surgeries?: string;
+      height_cm?: number;
+      weight_kg?: number;
+      blood_pressure?: string;
+      insurance_provider?: string;
+      insurance_policy_number?: string;
+      insurance_group_number?: string;
+      address_street?: string;
+      address_city?: string;
+      address_state?: string;
+      address_zip?: string;
+      address_country?: string;
+      condition_description?: string;
+      condition_tags?: string[];
+    }
+  >,
 ): Promise<PatientProfile> {
   return request<PatientProfile>("/api/profiles/patient/me", {
     method: "PUT",
@@ -414,7 +460,12 @@ export async function updatePatientProfile(
 
 // — Referrals —————————————————————————————————————
 
-import type { Referral, CareTeam, CareTeamMember, AdminAssignment } from "@/lib/types";
+import type {
+  Referral,
+  CareTeam,
+  CareTeamMember,
+  AdminAssignment,
+} from "@/lib/types";
 
 export interface CreateReferralData {
   referred_doctor_id: string;
@@ -423,7 +474,9 @@ export interface CreateReferralData {
   notes?: string;
 }
 
-export async function createReferral(data: CreateReferralData): Promise<Referral> {
+export async function createReferral(
+  data: CreateReferralData,
+): Promise<Referral> {
   return request<Referral>("/api/referrals", {
     method: "POST",
     body: JSON.stringify(data),
@@ -440,7 +493,7 @@ export async function getReceivedReferrals(): Promise<Referral[]> {
 
 export async function updateReferralStatus(
   referralId: string,
-  status: "ACCEPTED" | "DECLINED"
+  status: "ACCEPTED" | "DECLINED",
 ): Promise<Referral> {
   return request<Referral>(`/api/referrals/${referralId}`, {
     method: "PATCH",
@@ -456,7 +509,9 @@ export interface CreateCareTeamData {
   description?: string;
 }
 
-export async function createCareTeam(data: CreateCareTeamData): Promise<CareTeam> {
+export async function createCareTeam(
+  data: CreateCareTeamData,
+): Promise<CareTeam> {
   return request<CareTeam>("/api/care-teams", {
     method: "POST",
     body: JSON.stringify(data),
@@ -465,7 +520,7 @@ export async function createCareTeam(data: CreateCareTeamData): Promise<CareTeam
 
 export async function addCareTeamMember(
   teamId: string,
-  data: { doctor_id: string; role?: string }
+  data: { doctor_id: string; role?: string },
 ): Promise<CareTeamMember> {
   return request<CareTeamMember>(`/api/care-teams/${teamId}/members`, {
     method: "POST",
@@ -473,7 +528,9 @@ export async function addCareTeamMember(
   });
 }
 
-export async function getPatientCareTeams(patientId: string): Promise<CareTeam[]> {
+export async function getPatientCareTeams(
+  patientId: string,
+): Promise<CareTeam[]> {
   return request<CareTeam[]>(`/api/care-teams/patient/${patientId}`);
 }
 
@@ -488,7 +545,9 @@ export interface CreateAssignmentData {
   doctor_id: string;
 }
 
-export async function createAssignment(data: CreateAssignmentData): Promise<AdminAssignment> {
+export async function createAssignment(
+  data: CreateAssignmentData,
+): Promise<AdminAssignment> {
   return request<AdminAssignment>("/api/admin/assignments", {
     method: "POST",
     body: JSON.stringify(data),
@@ -507,14 +566,20 @@ export async function deleteAssignment(assignmentId: string): Promise<void> {
 
 // — Admin User Controls ——————————————————————————————
 
-export async function updateUserRole(userId: string, role: string): Promise<AdminUser> {
+export async function updateUserRole(
+  userId: string,
+  role: string,
+): Promise<AdminUser> {
   return request<AdminUser>(`/api/admin/users/${userId}/role`, {
     method: "PATCH",
     body: JSON.stringify({ role }),
   });
 }
 
-export async function updateUserStatus(userId: string, is_active: boolean): Promise<AdminUser> {
+export async function updateUserStatus(
+  userId: string,
+  is_active: boolean,
+): Promise<AdminUser> {
   return request<AdminUser>(`/api/admin/users/${userId}/status`, {
     method: "PATCH",
     body: JSON.stringify({ is_active }),
@@ -529,7 +594,11 @@ export async function deleteUser(userId: string): Promise<void> {
 
 // — Secure Chat ——————————————————————————————
 
-export async function createChatRoom(data: { name?: string; room_type?: string; participant_ids: string[] }) {
+export async function createChatRoom(data: {
+  name?: string;
+  room_type?: string;
+  participant_ids: string[];
+}) {
   return request<import("./types").ChatRoom>("/api/chat/rooms", {
     method: "POST",
     body: JSON.stringify(data),
@@ -541,14 +610,19 @@ export async function getChatRooms() {
 }
 
 export async function getChatMessages(roomId: string) {
-  return request<import("./types").ChatMessage[]>(`/api/chat/rooms/${roomId}/messages`);
+  return request<import("./types").ChatMessage[]>(
+    `/api/chat/rooms/${roomId}/messages`,
+  );
 }
 
 export async function sendChatMessage(roomId: string, content: string) {
-  return request<import("./types").ChatMessage>(`/api/chat/rooms/${roomId}/messages`, {
-    method: "POST",
-    body: JSON.stringify({ content }),
-  });
+  return request<import("./types").ChatMessage>(
+    `/api/chat/rooms/${roomId}/messages`,
+    {
+      method: "POST",
+      body: JSON.stringify({ content }),
+    },
+  );
 }
 
 export async function deleteChatMessage(roomId: string, messageId: string) {

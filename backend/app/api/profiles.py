@@ -20,6 +20,7 @@ from app.db.engine import get_session
 from app.deps import require_patient, require_doctor, get_current_user
 from app.models.user import User
 from app.models.profiles import PatientProfile, DoctorProfile
+from app.services.gemini_service import get_gemini_service
 
 router = APIRouter(prefix="/profiles", tags=["profiles"])
 
@@ -41,6 +42,9 @@ class PatientProfileCreate(BaseModel):
     allergies: Optional[list[str]] = None
     chronic_conditions: Optional[list[str]] = None
     past_surgeries: Optional[str] = PydanticField(None, max_length=500)
+    # ── AI-Powered Condition Discovery ──
+    condition_description: Optional[str] = None
+    condition_tags: Optional[list[str]] = None
     height_cm: Optional[float] = None
     weight_kg: Optional[float] = None
     blood_pressure: Optional[str] = PydanticField(None, max_length=20)
@@ -66,6 +70,9 @@ class PatientProfileUpdate(BaseModel):
     allergies: Optional[list[str]] = None
     chronic_conditions: Optional[list[str]] = None
     past_surgeries: Optional[str] = PydanticField(None, max_length=500)
+    # ── AI-Powered Condition Discovery ──
+    condition_description: Optional[str] = None
+    condition_tags: Optional[list[str]] = None
     height_cm: Optional[float] = None
     weight_kg: Optional[float] = None
     blood_pressure: Optional[str] = PydanticField(None, max_length=20)
@@ -93,6 +100,9 @@ class PatientProfileResponse(BaseModel):
     allergies: Optional[list[str]] = None
     chronic_conditions: Optional[list[str]] = None
     past_surgeries: Optional[str] = None
+    # ── AI-Powered Condition Discovery ──
+    condition_description: Optional[str] = None
+    condition_tags: Optional[list[str]] = None
     height_cm: Optional[float] = None
     weight_kg: Optional[float] = None
     blood_pressure: Optional[str] = None
@@ -106,6 +116,15 @@ class PatientProfileResponse(BaseModel):
     address_country: Optional[str] = None
 
     model_config = {"from_attributes": True}
+
+
+class GenerateTagsRequest(BaseModel):
+    description: str = PydanticField(..., min_length=10, max_length=2000)
+
+
+class GenerateTagsResponse(BaseModel):
+    tags: list[str]
+    description: str
 
 
 class DoctorProfileCreate(BaseModel):
@@ -184,6 +203,60 @@ async def get_my_patient_profile(
             detail="Patient profile not found. Please complete your profile first.",
         )
     return PatientProfileResponse.model_validate(profile)
+
+
+@router.post("/patient/generate-tags", response_model=GenerateTagsResponse)
+async def generate_condition_tags(
+    body: GenerateTagsRequest,
+    user: User = Depends(require_patient),
+    session: AsyncSession = Depends(get_session),
+) -> GenerateTagsResponse:
+    """Send a patient's condition description to Gemini and return extracted medical tags.
+
+    This endpoint is intentionally separate from the profile save so the
+    patient can preview tags before committing them to their profile.
+    Does NOT persist anything — the client must call PUT /patient/me to save.
+
+    Error codes:
+      503  — GEMINI_API_KEY not configured in the environment.
+      422  — Description is empty or too short.
+      429  — All Gemini models are currently quota-exhausted (free-tier limit hit).
+      502  — Unexpected upstream error from the Gemini API.
+    """
+    try:
+        gemini = get_gemini_service()
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        )
+
+    try:
+        tags = await gemini.extract_tags(body.description)
+    except ValueError as exc:
+        # Empty / too-short description
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        )
+    except RuntimeError as exc:
+        error_msg = str(exc)
+        # Surface quota exhaustion as 429 so the frontend can show a
+        # user-friendly "try again later" message rather than a generic error.
+        if "quota-exhausted" in error_msg or "quota" in error_msg.lower():
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=(
+                    "The AI tag generation service is temporarily unavailable "
+                    "due to API quota limits. Please try again in a few minutes."
+                ),
+            )
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"AI tag generation failed: {error_msg}",
+        )
+
+    return GenerateTagsResponse(tags=tags, description=body.description)
 
 
 @router.put("/patient/me", response_model=PatientProfileResponse)
