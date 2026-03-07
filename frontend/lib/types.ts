@@ -137,6 +137,7 @@ export interface AdminStats {
 
 export interface MappingDoctor {
   profile_id: string;
+  user_id: string; // user UUID — used to open a direct chat room
   first_name: string;
   last_name: string;
   specialization: string;
@@ -145,6 +146,7 @@ export interface MappingDoctor {
 
 export interface MappingPatient {
   profile_id: string;
+  user_id: string; // user UUID — used to open a direct chat room
   first_name: string;
   last_name: string;
   mapping_id: string;
@@ -245,11 +247,106 @@ export interface ChatRoom {
   participant_count: number;
 }
 
+/** Enriched room returned by GET /api/chat/rooms — drives the full sidebar row. */
+export interface ChatRoomEnriched extends ChatRoom {
+  last_message_preview: string | null;
+  last_message_at: string | null;
+  unread_count: number;
+  /** user UUID of the other participant (DIRECT rooms only) */
+  other_participant_id: string | null;
+  /** Display name resolved server-side, e.g. "Dr. Sarah Chen" */
+  other_participant_name: string | null;
+  /** "DOCTOR" | "PATIENT" | "ADMIN" */
+  other_participant_role: string | null;
+}
+
 export interface ChatMessage {
   id: string;
   room_id: string;
   sender_id: string;
+  /** Resolved by the backend — null for very old rows before the field existed */
+  sender_name: string | null;
   content: string;
   created_at: string;
   is_deleted: boolean;
+  /** "TEXT" = normal message | "SYSTEM" = auto-generated event pill */
+  message_type: "TEXT" | "SYSTEM";
+}
+
+// ── Optimistic messaging ─────────────────────────────────────────
+
+export type MessageStatus = "sending" | "sent" | "failed";
+
+/**
+ * A locally-created message that hasn't been confirmed by the server yet.
+ * Identified by `tempId` (a client-generated UUID) instead of a real `id`.
+ * Rendered with a status indicator (●●● / Failed) in the chat bubble.
+ */
+export interface OptimisticMessage {
+  tempId: string;
+  room_id: string;
+  sender_id: string;
+  sender_name: string | null;
+  content: string;
+  created_at: string;
+  is_deleted: false;
+  message_type: "TEXT";
+  status: MessageStatus;
+}
+
+/** Union used by the message-list renderer — real OR optimistic. */
+export type DisplayMessage = ChatMessage | OptimisticMessage;
+
+/** Type guard: true when the message is still pending server confirmation. */
+export function isOptimistic(m: DisplayMessage): m is OptimisticMessage {
+  return "tempId" in m;
+}
+
+/** A user the caller is allowed to start a chat with. */
+export interface ChatUserResult {
+  id: string;
+  name: string;
+  role: string;
+  /** Ready-to-render label, e.g. "Dr. Sarah Chen · Cardiology" */
+  display_label: string;
+}
+
+// ── Chat utility helpers ─────────────────────────────────────────
+
+/**
+ * Format an ISO timestamp as a compact, human-readable chat time label.
+ *
+ * Rules:
+ *   < 1 minute ago  → "now"
+ *   < 1 hour ago    → "Xm"
+ *   same day        → "HH:MM"
+ *   yesterday       → "Yesterday"
+ *   this week       → weekday short name, e.g. "Mon"
+ *   older           → "Jan 12"
+ */
+export function formatChatTime(isoString: string): string {
+  const date = new Date(isoString);
+  if (Number.isNaN(date.getTime())) return "";
+
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMin = Math.floor(diffMs / 60_000);
+  const diffHrs = Math.floor(diffMs / 3_600_000);
+
+  if (diffMin < 1) return "now";
+  if (diffMin < 60) return `${diffMin}m`;
+  if (diffHrs < 24) {
+    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  }
+
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (date.toDateString() === yesterday.toDateString()) return "Yesterday";
+
+  if (diffHrs < 168) {
+    // Within the last 7 days → show weekday
+    return date.toLocaleDateString([], { weekday: "short" });
+  }
+
+  return date.toLocaleDateString([], { month: "short", day: "numeric" });
 }

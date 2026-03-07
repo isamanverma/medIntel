@@ -592,30 +592,76 @@ export async function deleteUser(userId: string): Promise<void> {
   });
 }
 
-// — Secure Chat ——————————————————————————————
+// ── Secure Chat ───────────────────────────────────────────────────────────────
 
+/**
+ * Create a new chat room.
+ * For DIRECT rooms with one participant the server is idempotent:
+ * if a room already exists between the two users it is returned unchanged.
+ */
 export async function createChatRoom(data: {
   name?: string;
   room_type?: string;
   participant_ids: string[];
 }) {
-  return request<import("./types").ChatRoom>("/api/chat/rooms", {
+  return request<import("./types").ChatRoomEnriched>("/api/chat/rooms", {
     method: "POST",
     body: JSON.stringify(data),
   });
 }
 
+/**
+ * List all rooms the current user participates in.
+ * Each item is enriched with last-message preview, unread count, and
+ * the other participant's name + role (for DIRECT rooms).
+ */
 export async function getChatRooms() {
-  return request<import("./types").ChatRoom[]>("/api/chat/rooms");
+  return request<import("./types").ChatRoomEnriched[]>("/api/chat/rooms");
 }
 
+/**
+ * Fetch the initial page of messages for a room (last 50, oldest-first).
+ */
 export async function getChatMessages(roomId: string) {
   return request<import("./types").ChatMessage[]>(
     `/api/chat/rooms/${roomId}/messages`,
   );
 }
 
-export async function sendChatMessage(roomId: string, content: string) {
+/**
+ * Polling delta — fetch only messages newer than the given ISO timestamp.
+ * Returns an empty array when nothing has changed, which is the common case.
+ */
+export async function getChatMessagesSince(
+  roomId: string,
+  since: string,
+): Promise<import("./types").ChatMessage[]> {
+  return request<import("./types").ChatMessage[]>(
+    `/api/chat/rooms/${roomId}/messages?since=${encodeURIComponent(since)}`,
+  );
+}
+
+/**
+ * Load-more / infinite scroll — fetch messages older than the given ISO timestamp.
+ * Returns at most 50 messages, oldest-first.
+ */
+export async function getChatMessagesPage(
+  roomId: string,
+  before: string,
+): Promise<import("./types").ChatMessage[]> {
+  return request<import("./types").ChatMessage[]>(
+    `/api/chat/rooms/${roomId}/messages?before=${encodeURIComponent(before)}&limit=50`,
+  );
+}
+
+/**
+ * Send a message to a room.
+ * The caller should optimistically insert the message before awaiting this.
+ */
+export async function sendChatMessage(
+  roomId: string,
+  content: string,
+): Promise<import("./types").ChatMessage> {
   return request<import("./types").ChatMessage>(
     `/api/chat/rooms/${roomId}/messages`,
     {
@@ -625,8 +671,41 @@ export async function sendChatMessage(roomId: string, content: string) {
   );
 }
 
-export async function deleteChatMessage(roomId: string, messageId: string) {
+/**
+ * Admin-only soft delete.
+ * SYSTEM messages are immutable and the server will reject deletion attempts.
+ */
+export async function deleteChatMessage(
+  roomId: string,
+  messageId: string,
+): Promise<void> {
   await request<void>(`/api/chat/rooms/${roomId}/messages/${messageId}`, {
     method: "DELETE",
   });
+}
+
+/**
+ * Stamp last_read_at = now() for the calling user in this room.
+ * Call this every time the user opens or switches to a room so the unread
+ * badge is cleared in subsequent getChatRooms() responses.
+ */
+export async function markRoomRead(roomId: string): Promise<void> {
+  await request<void>(`/api/chat/rooms/${roomId}/read`, {
+    method: "PATCH",
+  });
+}
+
+/**
+ * Search users the caller is allowed to start a chat with.
+ * Results are visibility-scoped by the server:
+ *   Patient → only their linked doctors
+ *   Doctor  → linked patients + all other doctors
+ *   Admin   → all active users
+ */
+export async function searchChatUsers(
+  q: string,
+): Promise<import("./types").ChatUserResult[]> {
+  return request<import("./types").ChatUserResult[]>(
+    `/api/chat/users/searchable?q=${encodeURIComponent(q)}`,
+  );
 }

@@ -22,6 +22,7 @@ import {
   Send,
   ArrowRightLeft,
   UsersRound,
+  MessageSquare,
 } from "lucide-react";
 import Link from "next/link";
 import { SecureChat } from "@/components/chat/SecureChat";
@@ -37,6 +38,7 @@ import {
   updateReferralStatus,
   getDoctorCareTeams,
   createCareTeam,
+  createChatRoom,
 } from "@/lib/api-client";
 import type {
   Appointment,
@@ -55,6 +57,15 @@ export default function DoctorDashboard() {
   const [patients, setPatients] = useState<MappingPatient[]>([]);
   const [profile, setProfile] = useState<DoctorProfile | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Chat integration — pre-selected room when clicking "Chat" on a patient card
+  const [chatInitialRoomId, setChatInitialRoomId] = useState<
+    string | undefined
+  >(undefined);
+  // Controls which main section is visible: "dashboard" | "chat"
+  const [activeSection, setActiveSection] = useState<"dashboard" | "chat">(
+    "dashboard",
+  );
 
   // Modals
   const [showProfileForm, setShowProfileForm] = useState(false);
@@ -201,6 +212,25 @@ export default function DoctorDashboard() {
         err instanceof Error ? err.message : "Failed to update referral",
         "error",
       );
+    }
+  };
+
+  const handleChatWithPatient = async (patientUserId: string) => {
+    try {
+      const room = await createChatRoom({
+        room_type: "DIRECT",
+        participant_ids: [patientUserId],
+      });
+      setChatInitialRoomId(room.id);
+      setActiveSection("chat");
+      // Scroll to the chat section smoothly
+      setTimeout(() => {
+        document
+          .getElementById("chat-section")
+          ?.scrollIntoView({ behavior: "smooth" });
+      }, 100);
+    } catch {
+      toast("Could not open chat. Please try from the Chat tab.", "error");
     }
   };
 
@@ -612,7 +642,7 @@ export default function DoctorDashboard() {
                       {p.first_name?.[0]}
                       {p.last_name?.[0]}
                     </div>
-                    <div>
+                    <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-card-foreground">
                         {p.first_name} {p.last_name}
                       </p>
@@ -620,6 +650,13 @@ export default function DoctorDashboard() {
                         ID: {p.profile_id.slice(0, 8)}…
                       </p>
                     </div>
+                    <button
+                      onClick={() => handleChatWithPatient(p.user_id)}
+                      className="ml-auto flex-shrink-0 rounded-lg p-1.5 text-primary/60 hover:bg-primary/10 hover:text-primary transition-colors"
+                      title={`Chat with ${p.first_name} ${p.last_name}`}
+                    >
+                      <MessageSquare className="h-4 w-4" />
+                    </button>
                   </div>
                 ))}
               </div>
@@ -773,8 +810,8 @@ export default function DoctorDashboard() {
         </div>
 
         {/* Secure Chat */}
-        <div className="mt-8">
-          <SecureChat />
+        <div id="chat-section" className="mt-8">
+          <SecureChat initialRoomId={chatInitialRoomId} />
         </div>
       </main>
 

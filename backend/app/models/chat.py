@@ -5,6 +5,8 @@ Design principles:
 - Messages are immutable for all users and doctors (no edit/delete).
 - Only admins can soft-delete messages via is_deleted flag.
 - Chat history is append-only to guarantee auditability.
+- last_read_at on ChatParticipant drives unread-count computation.
+- message_type distinguishes user TEXT messages from auto-generated SYSTEM events.
 """
 
 import uuid
@@ -20,6 +22,11 @@ class RoomType(str, Enum):
     GROUP = "GROUP"     # multi-doctor care team channel
 
 
+class MessageType(str, Enum):
+    TEXT = "TEXT"       # normal user message — immutable, admin soft-deletable
+    SYSTEM = "SYSTEM"   # auto-generated event marker — never deletable, rendered as pill
+
+
 class ChatParticipant(SQLModel, table=True):
     __tablename__ = "chat_participants"
 
@@ -27,6 +34,11 @@ class ChatParticipant(SQLModel, table=True):
     room_id: uuid.UUID = Field(foreign_key="chat_rooms.id", index=True)
     user_id: uuid.UUID = Field(foreign_key="users.id", index=True)
     joined_at: datetime = Field(default_factory=datetime.utcnow)
+
+    # Timestamp of the last message the user has read in this room.
+    # NULL means the user has never opened the room.
+    # Used to compute per-room unread counts without a separate table.
+    last_read_at: Optional[datetime] = Field(default=None)
 
     room: Optional["ChatRoom"] = Relationship(back_populates="participants")
 
@@ -39,7 +51,13 @@ class ChatMessage(SQLModel, table=True):
     sender_id: uuid.UUID = Field(foreign_key="users.id", index=True)
     content: str = Field(min_length=1, max_length=4000)
     created_at: datetime = Field(default_factory=datetime.utcnow)
-    # Soft-delete: only admins may set this to True
+
+    # TEXT (default) = regular user message
+    # SYSTEM = auto-generated event (room created, care team linked, etc.)
+    # SYSTEM messages are never soft-deletable even by admins.
+    message_type: MessageType = Field(default=MessageType.TEXT)
+
+    # Soft-delete: only admins may set this to True (TEXT messages only)
     is_deleted: bool = Field(default=False)
     deleted_by: Optional[uuid.UUID] = Field(default=None, foreign_key="users.id")
     deleted_at: Optional[datetime] = Field(default=None)
@@ -58,5 +76,3 @@ class ChatRoom(SQLModel, table=True):
 
     participants: List["ChatParticipant"] = Relationship(back_populates="room")
     messages: List["ChatMessage"] = Relationship(back_populates="room")
-
-

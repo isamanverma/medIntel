@@ -20,6 +20,8 @@ import {
   Sparkles,
   Tag,
   X,
+  MessageSquare,
+  Stethoscope,
 } from "lucide-react";
 import { SecureChat } from "@/components/chat/SecureChat";
 import Link from "next/link";
@@ -32,6 +34,7 @@ import {
   updatePatientProfile,
   createAppointment,
   generateConditionTags,
+  createChatRoom,
 } from "@/lib/api-client";
 import type { Appointment, MappingDoctor, PatientProfile } from "@/lib/types";
 
@@ -45,6 +48,11 @@ export default function PatientDashboard() {
   const [doctors, setDoctors] = useState<MappingDoctor[]>([]);
   const [profile, setProfile] = useState<PatientProfile | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Chat integration — pre-selected room when clicking "Chat" on a doctor card
+  const [chatInitialRoomId, setChatInitialRoomId] = useState<
+    string | undefined
+  >(undefined);
 
   // Modal states
   const [showProfileForm, setShowProfileForm] = useState(false);
@@ -252,6 +260,24 @@ export default function PatientDashboard() {
     setShowProfileForm(true);
   };
 
+  const handleChatWithDoctor = async (doctorUserId: string) => {
+    try {
+      const room = await createChatRoom({
+        room_type: "DIRECT",
+        participant_ids: [doctorUserId],
+      });
+      setChatInitialRoomId(room.id);
+      // Scroll to the chat section smoothly
+      setTimeout(() => {
+        document
+          .getElementById("patient-chat-section")
+          ?.scrollIntoView({ behavior: "smooth" });
+      }, 100);
+    } catch {
+      toast("Could not open chat. Please try from the Chat section.", "error");
+    }
+  };
+
   const handleBookingSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!profile) {
@@ -457,6 +483,48 @@ export default function PatientDashboard() {
           })}
         </div>
 
+        {/* My Doctors */}
+        {doctors.length > 0 && (
+          <div className="mb-8 rounded-xl border border-border bg-card p-6 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Stethoscope className="h-5 w-5 text-secondary" />
+                <h2 className="text-lg font-semibold text-card-foreground">
+                  My Doctors
+                </h2>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {doctors.map((d) => (
+                <div
+                  key={d.profile_id}
+                  className="flex items-center gap-3 rounded-lg border border-border p-3 hover:bg-muted/50 transition-colors"
+                >
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-secondary/10 text-secondary font-semibold text-sm">
+                    {d.first_name?.[0]}
+                    {d.last_name?.[0]}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-card-foreground truncate">
+                      Dr. {d.first_name} {d.last_name}
+                    </p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {d.specialization}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => handleChatWithDoctor(d.user_id)}
+                    className="ml-auto flex-shrink-0 rounded-lg p-1.5 text-secondary/60 hover:bg-secondary/10 hover:text-secondary transition-colors"
+                    title={`Chat with Dr. ${d.first_name} ${d.last_name}`}
+                  >
+                    <MessageSquare className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           {/* Appointments */}
           <div className="lg:col-span-2 rounded-xl border border-border bg-card p-6 shadow-sm">
@@ -650,8 +718,8 @@ export default function PatientDashboard() {
         </div>
 
         {/* Secure Chat */}
-        <div className="mt-8">
-          <SecureChat />
+        <div id="patient-chat-section" className="mt-8">
+          <SecureChat initialRoomId={chatInitialRoomId} />
         </div>
       </main>
 

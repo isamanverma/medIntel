@@ -70,20 +70,29 @@ class TestChatAPI:
             "content": "Hello!"
         }, headers={"Authorization": f"Bearer {doc_token}"})
         assert res.status_code == 201
-        
+
         # Patient sends message
         res = await client.post(f"/api/chat/rooms/{room_id}/messages", json={
             "content": "Hi Doctor"
         }, headers={"Authorization": f"Bearer {pat_token}"})
         assert res.status_code == 201
 
-        # Get history
+        # Get history — includes the auto-injected SYSTEM message from room creation
         res = await client.get(f"/api/chat/rooms/{room_id}/messages", headers={"Authorization": f"Bearer {pat_token}"})
         assert res.status_code == 200
         messages = res.json()
-        assert len(messages) == 2
-        assert messages[0]["content"] == "Hello!"
-        assert messages[1]["content"] == "Hi Doctor"
+        # 1 SYSTEM message (room created) + 2 TEXT messages = 3 total
+        assert len(messages) == 3
+
+        # First message is the system event marker
+        assert messages[0]["message_type"] == "SYSTEM"
+        assert "Secure chat started" in messages[0]["content"]
+
+        # User messages follow in chronological order
+        text_messages = [m for m in messages if m["message_type"] == "TEXT"]
+        assert len(text_messages) == 2
+        assert text_messages[0]["content"] == "Hello!"
+        assert text_messages[1]["content"] == "Hi Doctor"
 
     async def test_non_participant_cannot_access(self, client: AsyncClient):
         doc_token, doc_id = await create_and_login(client, "DOCTOR")
@@ -130,8 +139,19 @@ class TestChatAPI:
         res = await client.delete(f"/api/chat/rooms/{room_id}/messages/{msg_id}", headers={"Authorization": f"Bearer {admin_token}"})
         assert res.status_code == 204
 
-        # Read back messages shows "[message deleted]"
+        # Read back messages — first is the SYSTEM message, second is the soft-deleted TEXT message
         res = await client.get(f"/api/chat/rooms/{room_id}/messages", headers={"Authorization": f"Bearer {doc_token}"})
         assert res.status_code == 200
-        assert res.json()[0]["content"] == "[message deleted]"
-        assert res.json()[0]["is_deleted"] is True
+        messages = res.json()
+        # 1 SYSTEM + 1 soft-deleted TEXT = 2 total
+        assert len(messages) == 2
+
+        # The SYSTEM message is unaffected
+        assert messages[0]["message_type"] == "SYSTEM"
+        assert messages[0]["is_deleted"] is False
+
+        # The TEXT message is soft-deleted
+        deleted_msg = messages[1]
+        assert deleted_msg["message_type"] == "TEXT"
+        assert deleted_msg["content"] == "[message deleted]"
+        assert deleted_msg["is_deleted"] is True

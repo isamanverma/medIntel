@@ -44,6 +44,7 @@ class MappingResponse(BaseModel):
 
 class PatientListItem(BaseModel):
     profile_id: uuid.UUID
+    user_id: uuid.UUID        # the user UUID — used by the frontend to open a direct chat
     first_name: str
     last_name: str
     mapping_id: uuid.UUID
@@ -53,6 +54,7 @@ class PatientListItem(BaseModel):
 
 class DoctorListItem(BaseModel):
     profile_id: uuid.UUID
+    user_id: uuid.UUID        # the user UUID — used by the frontend to open a direct chat
     first_name: str
     last_name: str
     specialization: str
@@ -262,6 +264,7 @@ async def get_my_patients(
     return [
         PatientListItem(
             profile_id=patient.id,
+            user_id=patient.user_id,
             first_name=patient.first_name,
             last_name=patient.last_name,
             mapping_id=mapping.id,
@@ -295,6 +298,7 @@ async def get_my_doctors(
     return [
         DoctorListItem(
             profile_id=doctor.id,
+            user_id=doctor.user_id,
             first_name=doctor.first_name,
             last_name=doctor.last_name,
             specialization=doctor.specialization,
