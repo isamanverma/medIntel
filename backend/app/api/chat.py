@@ -31,6 +31,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
+from sqlalchemy import text as sa_text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -102,6 +103,23 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
+def _strip_tz(dt: datetime) -> datetime:
+    """Strip timezone info from a datetime, treating it as naive UTC.
+
+    Supabase returns TIMESTAMPTZ columns (e.g. ChatParticipant.last_read_at,
+    ChatParticipant.joined_at) as timezone-aware datetimes, while
+    ChatMessage.created_at is stored as TIMESTAMP WITHOUT TIME ZONE (naive).
+    asyncpg raises DataError when you compare the two types directly in a
+    WHERE clause:
+        'can't subtract offset-naive and offset-aware datetimes'
+
+    Calling _strip_tz() on any value read from a TIMESTAMPTZ column before
+    using it in a comparison against a TIMESTAMP column keeps both sides
+    naive and consistent.
+    """
+    return dt.replace(tzinfo=None) if dt and dt.tzinfo is not None else dt
+
+
 def _room_enriched(
     room: ChatRoom,
     participant_count: int,
@@ -167,38 +185,55 @@ async def _find_direct_room(
     """
     Return an existing DIRECT room that contains exactly user_a and user_b,
     or None if no such room exists.
-    Used for deduplication so clicking 'Chat with Patient' multiple times
-    doesn't create duplicate conversations.
+
+    Uses a single atomic query:
+      1. Find room_ids where user_a is a participant.
+      2. Intersect with room_ids where user_b is a participant.
+      3. Join to chat_rooms and keep only DIRECT rooms.
+      4. Among those, keep only rooms with exactly 2 participants total
+         (guards against a GROUP room that happens to contain both users).
+      5. Return the oldest matching room (created_at ASC) so that if a
+         duplicate somehow slipped in, we always prefer the original.
+
+    Doing this in one round-trip eliminates the TOCTOU window that allowed
+    duplicates to be created when two requests arrived simultaneously.
     """
-    # Find rooms where user_a is a participant
-    a_result = await session.execute(
-        select(ChatParticipant.room_id).where(ChatParticipant.user_id == user_a)
+    from sqlalchemy import func, and_
+
+    # Subquery: room_ids shared by both users
+    a_sub = select(ChatParticipant.room_id).where(
+        ChatParticipant.user_id == user_a
+    ).scalar_subquery()
+
+    b_sub = select(ChatParticipant.room_id).where(
+        ChatParticipant.user_id == user_b
+    ).scalar_subquery()
+
+    # Subquery: participant count per room (to enforce exactly-2 constraint)
+    count_sub = (
+        select(
+            ChatParticipant.room_id,
+            func.count(ChatParticipant.id).label("participant_count"),
+        )
+        .group_by(ChatParticipant.room_id)
+        .subquery()
     )
-    a_rooms = {row for row in a_result.scalars().all()}
 
-    # Find rooms where user_b is a participant
-    b_result = await session.execute(
-        select(ChatParticipant.room_id).where(ChatParticipant.user_id == user_b)
-    )
-    b_rooms = {row for row in b_result.scalars().all()}
-
-    # Intersection = rooms both users share
-    shared = a_rooms & b_rooms
-    if not shared:
-        return None
-
-    # Filter to DIRECT rooms only
-    for room_id in shared:
-        room = await session.get(ChatRoom, room_id)
-        if room and room.room_type == RoomType.DIRECT:
-            # Verify it's exactly 2 participants (not a group with extras)
-            count_res = await session.execute(
-                select(ChatParticipant).where(ChatParticipant.room_id == room_id)
+    result = await session.execute(
+        select(ChatRoom)
+        .join(count_sub, count_sub.c.room_id == ChatRoom.id)
+        .where(
+            and_(
+                ChatRoom.id.in_(a_sub),
+                ChatRoom.id.in_(b_sub),
+                ChatRoom.room_type == RoomType.DIRECT,
+                count_sub.c.participant_count == 2,
             )
-            if len(count_res.scalars().all()) == 2:
-                return room
-
-    return None
+        )
+        .order_by(ChatRoom.created_at.asc())
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
 
 
 async def _resolve_user_name(session: AsyncSession, user_id: uuid.UUID) -> Optional[str]:
@@ -234,6 +269,23 @@ async def create_room(
         except ValueError:
             raise HTTPException(status_code=422, detail="Invalid participant UUID")
 
+        # Acquire a transaction-level PostgreSQL advisory lock keyed on the
+        # sorted pair of user UUIDs.  This serialises all concurrent POST /rooms
+        # requests for the same pair so that only one "not found → insert" path
+        # can run at a time, eliminating the TOCTOU race that allowed duplicates
+        # when asyncio.gather fired several simultaneous create requests.
+        #
+        # The lock key is a deterministic 63-bit integer derived by XOR-ing the
+        # two UUID integers.  XOR is commutative, so the key is the same
+        # regardless of which user initiates the request (doctor→patient or
+        # patient→doctor), which is exactly what we need for symmetric dedup.
+        #
+        # pg_advisory_xact_lock blocks until the lock is available and releases
+        # it automatically at transaction end (commit or rollback), so there is
+        # no risk of a forgotten unlock.
+        lock_key = int((me.id.int ^ other_id.int) & 0x7FFFFFFFFFFFFFFF)
+        await session.execute(sa_text(f"SELECT pg_advisory_xact_lock({lock_key})"))
+
         existing = await _find_direct_room(session, me.id, other_id)
         if existing:
             # Return enriched response for the existing room
@@ -265,7 +317,7 @@ async def create_room(
                     unread_res = await session.execute(
                         select(ChatMessage).where(
                             ChatMessage.room_id == existing.id,
-                            ChatMessage.created_at > my_part.last_read_at,
+                            ChatMessage.created_at > _strip_tz(my_part.last_read_at),
                             ChatMessage.sender_id != me.id,
                         )
                     )
@@ -417,7 +469,7 @@ async def list_rooms(
             )
             if my_part.last_read_at:
                 unread_query = unread_query.where(
-                    ChatMessage.created_at > my_part.last_read_at
+                    ChatMessage.created_at > _strip_tz(my_part.last_read_at)
                 )
             unread_res = await session.execute(unread_query)
             unread = len(unread_res.scalars().all())
@@ -552,7 +604,18 @@ async def get_messages(
 
     if since:
         try:
-            since_dt = datetime.fromisoformat(since.replace("Z", "+00:00"))
+            # Normalize timezone representations before parsing:
+            # 1. Replace trailing "Z" with "+00:00" (standard fromisoformat form)
+            # 2. Replace decoded space with "+" — browsers/httpx percent-encode "+" in
+            #    query strings; some URL parsers then decode "%2B" back to "+" but the
+            #    raw "+" in a query value is decoded as a space by form-encoding rules,
+            #    so "2000-01-01T00:00:00+00:00" arrives as "2000-01-01T00:00:00 00:00".
+            since_norm = since.replace("Z", "+00:00").replace(" ", "+")
+            since_dt = datetime.fromisoformat(since_norm)
+            # Normalize to naive UTC — the DB stores TIMESTAMP WITHOUT TIME ZONE.
+            # asyncpg raises DataError when a timezone-aware datetime is bound to
+            # a TIMESTAMP WITHOUT TIME ZONE column comparison.
+            since_dt = since_dt.replace(tzinfo=None)
         except ValueError:
             raise HTTPException(status_code=422, detail="Invalid 'since' datetime format")
         query = (
@@ -565,7 +628,12 @@ async def get_messages(
 
     elif before:
         try:
-            before_dt = datetime.fromisoformat(before.replace("Z", "+00:00"))
+            # Same normalization as `since` above — handle both "Z" suffix and
+            # the space-for-plus substitution that happens with URL form-encoding.
+            before_norm = before.replace("Z", "+00:00").replace(" ", "+")
+            before_dt = datetime.fromisoformat(before_norm)
+            # Normalize to naive UTC — same reason as `since_dt` above.
+            before_dt = before_dt.replace(tzinfo=None)
         except ValueError:
             raise HTTPException(status_code=422, detail="Invalid 'before' datetime format")
         query = (
@@ -734,26 +802,36 @@ async def searchable_users(
                     display_label=f"{full_name} · Patient",
                 ))
 
-        # All other doctors (peer consult)
-        all_docs_res = await session.execute(select(DoctorProfile))
-        all_doc_profiles = all_docs_res.scalars().all()
-        for dp in all_doc_profiles:
-            if dp.user_id == me.id:
-                continue   # skip self
-            doc_user = await session.get(User, dp.user_id)
-            if not doc_user or not doc_user.is_active:
-                continue
-            full_name = f"{dp.first_name} {dp.last_name}"
-            if not _name_matches(full_name):
-                continue
-            # Avoid duplicates (shouldn't happen, but be safe)
+        # All other doctors (peer consult) — query User table directly so that
+        # doctors who signed up but haven't created a DoctorProfile yet are still
+        # visible.  We enrich with DoctorProfile when available for a richer label.
+        all_docs_res = await session.execute(
+            select(User).where(User.role == UserRole.DOCTOR, User.id != me.id, User.is_active == True)
+        )
+        all_doc_users = all_docs_res.scalars().all()
+
+        # Build a profile map keyed by user_id for O(1) lookups
+        all_profiles_res = await session.execute(select(DoctorProfile))
+        profile_map: dict = {dp.user_id: dp for dp in all_profiles_res.scalars().all()}
+
+        for doc_user in all_doc_users:
+            # Avoid duplicates (e.g. linked patients who are also doctors — edge case)
             if any(r.id == str(doc_user.id) for r in results):
+                continue
+            dp = profile_map.get(doc_user.id)
+            if dp:
+                full_name = f"{dp.first_name} {dp.last_name}"
+                display_label = f"Dr. {dp.first_name} {dp.last_name} · {dp.specialization}"
+            else:
+                full_name = doc_user.name
+                display_label = f"{doc_user.name} · Doctor"
+            if not _name_matches(full_name):
                 continue
             results.append(ChatUserResult(
                 id=str(doc_user.id),
                 name=full_name,
                 role="DOCTOR",
-                display_label=f"Dr. {dp.first_name} {dp.last_name} · {dp.specialization}",
+                display_label=display_label,
             ))
 
     # ── ADMIN: all active users ───────────────────────────────────────────
