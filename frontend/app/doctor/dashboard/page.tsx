@@ -59,9 +59,13 @@ export default function DoctorDashboard() {
   const [loading, setLoading] = useState(true);
 
   // Chat integration — pre-selected room when clicking "Chat" on a patient card
-  const [chatInitialRoomId, setChatInitialRoomId] = useState<
-    string | undefined
-  >(undefined);
+  const [chatInitialRoomId, setChatInitialRoomId] = useState<string | null>(
+    null,
+  );
+  // Incremented every time the user clicks a "Chat with …" button so that
+  // SecureChat re-selects the room even when chatInitialRoomId hasn't changed
+  // (e.g. clicking the same patient twice in a row).
+  const [chatSwitchTrigger, setChatSwitchTrigger] = useState(0);
   // Controls which main section is visible: "dashboard" | "chat"
   const [activeSection, setActiveSection] = useState<"dashboard" | "chat">(
     "dashboard",
@@ -221,7 +225,10 @@ export default function DoctorDashboard() {
         room_type: "DIRECT",
         participant_ids: [patientUserId],
       });
+      // Update the target room and always increment the trigger so SecureChat
+      // re-selects even if the same room was already active.
       setChatInitialRoomId(room.id);
+      setChatSwitchTrigger((t) => t + 1);
       setActiveSection("chat");
       // Scroll to the chat section smoothly
       setTimeout(() => {
@@ -811,7 +818,10 @@ export default function DoctorDashboard() {
 
         {/* Secure Chat */}
         <div id="chat-section" className="mt-8">
-          <SecureChat initialRoomId={chatInitialRoomId} />
+          <SecureChat
+            initialRoomId={chatInitialRoomId}
+            switchTrigger={chatSwitchTrigger}
+          />
         </div>
       </main>
 

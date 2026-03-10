@@ -75,7 +75,14 @@ export interface SecureChatProps {
    * after loading.  Passed by the doctor/patient dashboard when the user
    * clicks a "Chat with …" button on the patient/doctor list.
    */
-  initialRoomId?: string;
+  initialRoomId?: string | null;
+  /**
+   * Increment this counter each time the parent wants to force a room switch —
+   * even if initialRoomId hasn't changed (e.g. clicking the same patient twice).
+   * The component watches this value alongside initialRoomId and re-selects the
+   * room on every increment.
+   */
+  switchTrigger?: number;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -317,7 +324,10 @@ const initialState: ChatState = {
 //  Main component
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function SecureChat({ initialRoomId }: SecureChatProps = {}) {
+export function SecureChat({
+  initialRoomId,
+  switchTrigger = 0,
+}: SecureChatProps = {}) {
   const { session } = useAuth();
   const [state, dispatch] = useReducer(chatReducer, initialState);
   const [draft, setDraft] = useState("");
@@ -371,22 +381,82 @@ export function SecureChat({ initialRoomId }: SecureChatProps = {}) {
 
   // ── Initial data load ──────────────────────────────────────────────────────
 
+  // Keep a ref to the current rooms list so effects can read it without
+  // adding state.rooms as a dependency (which would cause infinite loops).
+  // This ref is kept in sync with state.rooms via the effect below.
+  const roomsRef = useRef<ChatRoomEnriched[]>([]);
+
+  // Sync roomsRef whenever the reducer updates state.rooms (e.g. ROOM_PREPENDED
+  // from NewRoomPanel, or ROOMS_LOADED from a triggered re-fetch).
+  useEffect(() => {
+    roomsRef.current = state.rooms;
+  }, [state.rooms]);
+
+  // Track the last switchTrigger value we've already handled so the
+  // "switch" effect doesn't fire on the very first mount (initial load
+  // handles that case instead).
+  const lastHandledTriggerRef = useRef<number>(-1);
+
+  // ── Initial rooms load — runs once on mount ──────────────────────────────
+  // Fetches the room list and pre-selects `initialRoomId` if provided, or
+  // falls back to the first room in the list.
   useEffect(() => {
     (async () => {
       try {
         const rooms = await getChatRooms();
+        roomsRef.current = rooms;
         dispatch({ type: "ROOMS_LOADED", rooms });
 
-        // Pre-select: prefer initialRoomId, then the first room
+        // Pre-select: prefer initialRoomId (from prop at mount time), then first room
         const target = initialRoomId ?? rooms[0]?.id ?? null;
         if (target) {
           dispatch({ type: "ROOM_SELECTED", roomId: target });
         }
+        // Mark the current trigger as handled so the switch effect below
+        // doesn't duplicate the selection on the first render.
+        lastHandledTriggerRef.current = switchTrigger;
       } catch {
         dispatch({ type: "ROOMS_LOADED", rooms: [] });
+        lastHandledTriggerRef.current = switchTrigger;
       }
     })();
-  }, [initialRoomId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // intentionally empty — runs once on mount only
+
+  // ── Room-switch effect — fires when switchTrigger is incremented ─────────
+  // This decouples "switch to a room" from the initial load so:
+  //   1. We don't re-fetch ALL rooms on every parent re-render.
+  //   2. Clicking the same patient/doctor twice (same roomId) still works
+  //      because switchTrigger always increments.
+  //   3. If the target room is already in the local list we switch instantly
+  //      without a network round-trip; only newly-created rooms need a fetch.
+  useEffect(() => {
+    // Skip the very first mount cycle — the initial load effect handles that.
+    if (switchTrigger === 0 || switchTrigger === lastHandledTriggerRef.current)
+      return;
+    if (!initialRoomId) return;
+
+    lastHandledTriggerRef.current = switchTrigger;
+
+    const alreadyLoaded = roomsRef.current.some((r) => r.id === initialRoomId);
+
+    if (alreadyLoaded) {
+      // Room is already in sidebar — just switch to it instantly.
+      dispatch({ type: "ROOM_SELECTED", roomId: initialRoomId });
+    } else {
+      // Room was just created (or not yet fetched) — re-fetch the list first.
+      (async () => {
+        try {
+          const rooms = await getChatRooms();
+          roomsRef.current = rooms;
+          dispatch({ type: "ROOMS_LOADED", rooms });
+          dispatch({ type: "ROOM_SELECTED", roomId: initialRoomId });
+        } catch {
+          // silently ignore — user can still see the existing chat list
+        }
+      })();
+    }
+  }, [switchTrigger, initialRoomId]);
 
   // ── Load messages when active room changes ─────────────────────────────────
 
