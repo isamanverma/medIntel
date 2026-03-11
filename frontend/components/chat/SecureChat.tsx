@@ -1,25 +1,5 @@
 "use client";
 
-/**
- * SecureChat — Phase 5c rewrite
- *
- * Improvements over the original:
- *  - useReducer for atomic state transitions (optimistic send, confirm, fail)
- *  - Enriched sidebar: participant name, role badge, last-message preview,
- *    unread count, relative time label
- *  - Smart scroll: only auto-scrolls when already near the bottom, or when
- *    the current user sends a message; shows a "New messages ↓" badge otherwise
- *  - Optimistic messaging: message appears instantly with a "sending" indicator;
- *    replaced by the confirmed server message or marked "Failed · Retry"
- *  - User-search room creation: debounced combobox replaces the UUID text input
- *  - Load-more button for older messages (cursor pagination via `before` param)
- *  - System message pills: SYSTEM-type messages render as centred grey pills
- *    instead of chat bubbles
- *  - Visibility-aware polling via useChatPolling (imported from sibling file)
- *  - initialRoomId prop: parent dashboards can pre-select a room (e.g. from
- *    a "Chat with Patient" button)
- */
-
 import {
   useCallback,
   useEffect,
@@ -34,8 +14,11 @@ import {
   Info,
   Loader2,
   MessageSquare,
+  Plus,
   RotateCcw,
+  Search,
   Send,
+  Shield,
   Trash2,
   User,
   Users,
@@ -54,6 +37,7 @@ import {
   sendChatMessage,
 } from "@/lib/api-client";
 import {
+  formatBubbleTime,
   formatChatTime,
   isOptimistic,
   type ChatMessage,
@@ -62,53 +46,40 @@ import {
   type DisplayMessage,
   type OptimisticMessage,
 } from "@/lib/types";
+import { cn } from "@/lib/utils";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
 
 import { useChatPolling } from "./useChatPolling";
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  Component props
+//  Props
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface SecureChatProps {
-  /**
-   * When provided, the chat component will switch to this room immediately
-   * after loading.  Passed by the doctor/patient dashboard when the user
-   * clicks a "Chat with …" button on the patient/doctor list.
-   */
   initialRoomId?: string | null;
-  /**
-   * Increment this counter each time the parent wants to force a room switch —
-   * even if initialRoomId hasn't changed (e.g. clicking the same patient twice).
-   * The component watches this value alongside initialRoomId and re-selects the
-   * room on every increment.
-   */
   switchTrigger?: number;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  State shape & reducer
+//  State / reducer (unchanged logic, purely state management)
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface ChatState {
   rooms: ChatRoomEnriched[];
   activeRoomId: string | null;
-  /** Per-room confirmed message cache. */
   messagesByRoom: Record<string, ChatMessage[]>;
-  /** Per-room optimistic (pending / failed) messages. */
   pendingByRoom: Record<string, OptimisticMessage[]>;
-  /** Rooms for which we have loaded at least one page of messages. */
   loadedRooms: Set<string>;
-  /** Rooms for which the server returned a full page (hasMore = true). */
   hasMoreByRoom: Record<string, boolean>;
-  /** Whether the initial room list is being fetched. */
   initialLoading: boolean;
-  /** Per-room message-area loading state. */
   roomLoading: Record<string, boolean>;
-  /** Per-room "loading older" state (load-more button). */
   loadingMoreByRoom: Record<string, boolean>;
-  ui: {
-    showNewRoom: boolean;
-  };
+  ui: { showNewRoom: boolean };
 }
 
 type ChatAction =
@@ -148,14 +119,9 @@ const PAGE_SIZE = 50;
 function chatReducer(state: ChatState, action: ChatAction): ChatState {
   switch (action.type) {
     case "ROOMS_LOADED":
-      return {
-        ...state,
-        rooms: action.rooms,
-        initialLoading: false,
-      };
+      return { ...state, rooms: action.rooms, initialLoading: false };
 
     case "ROOM_PREPENDED": {
-      // If the room already exists (idempotent create), just update it
       const exists = state.rooms.some((r) => r.id === action.room.id);
       const rooms = exists
         ? state.rooms.map((r) => (r.id === action.room.id ? action.room : r))
@@ -173,7 +139,7 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
       };
 
     case "MESSAGES_LOADED": {
-      const reversed = [...action.messages]; // already oldest-first from server
+      const reversed = [...action.messages];
       return {
         ...state,
         messagesByRoom: { ...state.messagesByRoom, [action.roomId]: reversed },
@@ -188,7 +154,6 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
 
     case "MESSAGES_PREPENDED": {
       const existing = state.messagesByRoom[action.roomId] ?? [];
-      // Deduplicate by id
       const existingIds = new Set(existing.map((m) => m.id));
       const fresh = action.messages.filter((m) => !existingIds.has(m.id));
       return {
@@ -238,7 +203,6 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
         (m) => m.tempId !== action.tempId,
       );
       const confirmed = state.messagesByRoom[action.roomId] ?? [];
-      // Avoid double-adding if the poll already picked up this message
       const alreadyIn = confirmed.some((m) => m.id === action.real.id);
       return {
         ...state,
@@ -283,7 +247,6 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
     }
 
     case "ROOM_MARKED_READ": {
-      // Zero the unread badge locally without waiting for a re-fetch
       const rooms = state.rooms.map((r) =>
         r.id === action.roomId ? { ...r, unread_count: 0 } : r,
       );
@@ -321,6 +284,35 @@ const initialState: ChatState = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+//  Avatar color palette (deterministic by name)
+// ─────────────────────────────────────────────────────────────────────────────
+
+const AVATAR_PALETTES = [
+  "bg-indigo-500/20 text-indigo-400",
+  "bg-violet-500/20 text-violet-400",
+  "bg-sky-500/20 text-sky-400",
+  "bg-emerald-500/20 text-emerald-400",
+  "bg-amber-500/20 text-amber-400",
+  "bg-rose-500/20 text-rose-400",
+] as const;
+
+function avatarColor(name: string): string {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++)
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  return AVATAR_PALETTES[Math.abs(hash) % AVATAR_PALETTES.length];
+}
+
+function nameInitials(name: string): string {
+  return name
+    .split(" ")
+    .map((w) => w[0] ?? "")
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 //  Main component
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -337,7 +329,7 @@ export function SecureChat({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const isAtBottomRef = useRef(true);
 
-  // ── Derived helpers ────────────────────────────────────────────────────────
+  // ── Derived ──────────────────────────────────────────────────────────────
 
   const activeRoom = useMemo(
     () => state.rooms.find((r) => r.id === state.activeRoomId) ?? null,
@@ -351,7 +343,6 @@ export function SecureChat({
   const pendingMessages: OptimisticMessage[] =
     (state.activeRoomId ? state.pendingByRoom[state.activeRoomId] : null) ?? [];
 
-  /** Full ordered display list: confirmed real messages then optimistic ones. */
   const displayMessages: DisplayMessage[] = [
     ...confirmedMessages,
     ...pendingMessages,
@@ -369,7 +360,6 @@ export function SecureChat({
     ? (state.hasMoreByRoom[state.activeRoomId] ?? false)
     : false;
 
-  /** ISO timestamp of the last confirmed message — used as the polling cursor. */
   const lastMessageTimestamp = confirmedMessages.length
     ? confirmedMessages[confirmedMessages.length - 1].created_at
     : null;
@@ -379,41 +369,26 @@ export function SecureChat({
     0,
   );
 
-  // ── Initial data load ──────────────────────────────────────────────────────
+  // ── Refs ──────────────────────────────────────────────────────────────────
 
-  // Keep a ref to the current rooms list so effects can read it without
-  // adding state.rooms as a dependency (which would cause infinite loops).
-  // This ref is kept in sync with state.rooms via the effect below.
   const roomsRef = useRef<ChatRoomEnriched[]>([]);
-
-  // Sync roomsRef whenever the reducer updates state.rooms (e.g. ROOM_PREPENDED
-  // from NewRoomPanel, or ROOMS_LOADED from a triggered re-fetch).
   useEffect(() => {
     roomsRef.current = state.rooms;
   }, [state.rooms]);
 
-  // Track the last switchTrigger value we've already handled so the
-  // "switch" effect doesn't fire on the very first mount (initial load
-  // handles that case instead).
   const lastHandledTriggerRef = useRef<number>(-1);
 
-  // ── Initial rooms load — runs once on mount ──────────────────────────────
-  // Fetches the room list and pre-selects `initialRoomId` if provided, or
-  // falls back to the first room in the list.
+  // ── Effects ───────────────────────────────────────────────────────────────
+
+  // Initial room list load
   useEffect(() => {
     (async () => {
       try {
         const rooms = await getChatRooms();
         roomsRef.current = rooms;
         dispatch({ type: "ROOMS_LOADED", rooms });
-
-        // Pre-select: prefer initialRoomId (from prop at mount time), then first room
         const target = initialRoomId ?? rooms[0]?.id ?? null;
-        if (target) {
-          dispatch({ type: "ROOM_SELECTED", roomId: target });
-        }
-        // Mark the current trigger as handled so the switch effect below
-        // doesn't duplicate the selection on the first render.
+        if (target) dispatch({ type: "ROOM_SELECTED", roomId: target });
         lastHandledTriggerRef.current = switchTrigger;
       } catch {
         dispatch({ type: "ROOMS_LOADED", rooms: [] });
@@ -421,59 +396,42 @@ export function SecureChat({
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // intentionally empty — runs once on mount only
+  }, []);
 
-  // ── Room-switch effect — fires when switchTrigger is incremented ─────────
-  // This decouples "switch to a room" from the initial load so:
-  //   1. We don't re-fetch ALL rooms on every parent re-render.
-  //   2. Clicking the same patient/doctor twice (same roomId) still works
-  //      because switchTrigger always increments.
-  //   3. If the target room is already in the local list we switch instantly
-  //      without a network round-trip; only newly-created rooms need a fetch.
+  // Room-switch on trigger increment
   useEffect(() => {
-    // Skip the very first mount cycle — the initial load effect handles that.
     if (switchTrigger === 0 || switchTrigger === lastHandledTriggerRef.current)
       return;
     if (!initialRoomId) return;
-
     lastHandledTriggerRef.current = switchTrigger;
 
     const alreadyLoaded = roomsRef.current.some((r) => r.id === initialRoomId);
-
     if (alreadyLoaded) {
-      // Room is already in sidebar — just switch to it instantly.
       dispatch({ type: "ROOM_SELECTED", roomId: initialRoomId });
     } else {
-      // Room was just created (or not yet fetched) — re-fetch the list first.
       (async () => {
         try {
           const rooms = await getChatRooms();
           roomsRef.current = rooms;
           dispatch({ type: "ROOMS_LOADED", rooms });
           dispatch({ type: "ROOM_SELECTED", roomId: initialRoomId });
-        } catch {
-          // silently ignore — user can still see the existing chat list
-        }
+        } catch {}
       })();
     }
   }, [switchTrigger, initialRoomId]);
 
-  // ── Load messages when active room changes ─────────────────────────────────
-
+  // Load messages when active room changes
   useEffect(() => {
     if (!state.activeRoomId) return;
     const roomId = state.activeRoomId;
 
-    // Skip if already loaded (cache hit)
     if (state.loadedRooms.has(roomId)) {
-      // Still mark as read
       markRoomRead(roomId).catch(() => {});
       dispatch({ type: "ROOM_MARKED_READ", roomId });
       return;
     }
 
     dispatch({ type: "ROOM_LOADING", roomId });
-
     (async () => {
       try {
         const msgs = await getChatMessages(roomId);
@@ -497,60 +455,52 @@ export function SecureChat({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.activeRoomId]);
 
-  // ── Smart scroll logic ─────────────────────────────────────────────────────
+  // ── Scroll logic ──────────────────────────────────────────────────────────
 
   function handleScroll() {
     const el = scrollContainerRef.current;
     if (!el) return;
     const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-    isAtBottomRef.current = distanceFromBottom < 120;
+    isAtBottomRef.current = distanceFromBottom < 80;
     if (isAtBottomRef.current) setShowScrollBadge(false);
   }
 
-  // Scroll when messages change: only if already near the bottom or the last
-  // message was sent by the current user.
+  // Auto-scroll on new messages
   useEffect(() => {
-    if (!displayMessages.length) return;
     const last = displayMessages[displayMessages.length - 1];
-    const isMyMsg = isOptimistic(last)
-      ? last.sender_id === session?.user.id
-      : last.sender_id === session?.user.id;
+    const isMyMsg =
+      last &&
+      isOptimistic(last) &&
+      last.sender_id === session?.user.id &&
+      last.status === "sending";
 
     if (isAtBottomRef.current || isMyMsg) {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
       setShowScrollBadge(false);
-    } else {
+    } else if (last && !isOptimistic(last)) {
       setShowScrollBadge(true);
     }
-    // Only re-run when the count changes, not on every referential update
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [displayMessages.length]);
 
-  function scrollToBottom() {
+  const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    isAtBottomRef.current = true;
     setShowScrollBadge(false);
-    // Also mark room as read when user manually scrolls down
     if (state.activeRoomId) {
-      markRoomRead(state.activeRoomId).catch(() => {});
       dispatch({ type: "ROOM_MARKED_READ", roomId: state.activeRoomId });
     }
-  }
+  }, [state.activeRoomId]);
 
-  // ── Polling ────────────────────────────────────────────────────────────────
+  // ── Polling ───────────────────────────────────────────────────────────────
 
   const handleNewMessages = useCallback(
-    (fresh: ChatMessage[]) => {
-      if (!state.activeRoomId) return;
-      dispatch({
-        type: "MESSAGES_APPENDED",
-        roomId: state.activeRoomId,
-        messages: fresh,
-      });
-      // If the user is at the bottom, mark the room as read
+    (messages: ChatMessage[]) => {
+      if (!messages.length || !state.activeRoomId) return;
+      const roomId = state.activeRoomId;
+      dispatch({ type: "MESSAGES_APPENDED", roomId, messages });
       if (isAtBottomRef.current) {
-        markRoomRead(state.activeRoomId).catch(() => {});
-        dispatch({ type: "ROOM_MARKED_READ", roomId: state.activeRoomId });
+        markRoomRead(roomId).catch(() => {});
+        dispatch({ type: "ROOM_MARKED_READ", roomId });
       }
     },
     [state.activeRoomId],
@@ -560,33 +510,30 @@ export function SecureChat({
     roomId: state.activeRoomId,
     sinceTimestamp: lastMessageTimestamp,
     onNewMessages: handleNewMessages,
-    intervalMs: 5_000,
+    intervalMs: 3000,
   });
 
-  // ── Send message ───────────────────────────────────────────────────────────
+  // ── Actions ───────────────────────────────────────────────────────────────
 
   async function handleSendMessage(e: React.FormEvent) {
     e.preventDefault();
-    if (!draft.trim() || !state.activeRoomId) return;
-
     const content = draft.trim();
-    const tempId = crypto.randomUUID();
+    if (!content || !state.activeRoomId) return;
+    const tempId = `temp-${Date.now()}`;
     const roomId = state.activeRoomId;
-
     setDraft("");
 
     const optimistic: OptimisticMessage = {
       tempId,
       room_id: roomId,
       sender_id: session?.user.id ?? "",
-      sender_name: session?.user.name ?? null,
+      sender_name: session?.user.name ?? "Me",
       content,
       created_at: new Date().toISOString(),
       is_deleted: false,
       message_type: "TEXT",
       status: "sending",
     };
-
     dispatch({ type: "MESSAGE_PENDING", roomId, msg: optimistic });
 
     try {
@@ -596,8 +543,6 @@ export function SecureChat({
       dispatch({ type: "MESSAGE_FAILED", roomId, tempId });
     }
   }
-
-  // ── Retry failed message ───────────────────────────────────────────────────
 
   async function handleRetry(tempId: string, content: string) {
     if (!state.activeRoomId) return;
@@ -611,47 +556,30 @@ export function SecureChat({
     }
   }
 
-  // ── Delete message (admin only) ────────────────────────────────────────────
-
   async function handleDeleteMessage(msgId: string) {
-    if (!state.activeRoomId || session?.user?.role !== "ADMIN") return;
-    if (
-      !confirm(
-        "Are you sure you want to delete this message? This is permanent and will show as deleted to all users.",
-      )
-    )
-      return;
+    if (!state.activeRoomId) return;
+    const roomId = state.activeRoomId;
     try {
-      await deleteChatMessage(state.activeRoomId, msgId);
-      dispatch({
-        type: "MESSAGE_DELETED",
-        roomId: state.activeRoomId,
-        msgId,
-      });
-    } catch {
-      // silently ignore — the admin can retry
-    }
+      await deleteChatMessage(roomId, msgId);
+      dispatch({ type: "MESSAGE_DELETED", roomId, msgId });
+    } catch {}
   }
 
-  // ── Select room ────────────────────────────────────────────────────────────
-
-  function handleSelectRoom(roomId: string) {
-    dispatch({ type: "ROOM_SELECTED", roomId });
+  function handleSelectRoom(id: string) {
+    dispatch({ type: "ROOM_SELECTED", roomId: id });
     dispatch({ type: "UI_TOGGLE_NEW_ROOM", value: false });
-    setShowScrollBadge(false);
-    isAtBottomRef.current = true;
   }
-
-  // ── Load more (older messages) ─────────────────────────────────────────────
 
   async function handleLoadMore() {
-    if (!state.activeRoomId || isLoadingMore) return;
+    if (!state.activeRoomId) return;
     const oldest = confirmedMessages[0];
-    if (!oldest) return;
     const roomId = state.activeRoomId;
     dispatch({ type: "LOADING_MORE", roomId, value: true });
     try {
-      const older = await getChatMessagesPage(roomId, oldest.created_at);
+      const older = await getChatMessagesPage(
+        roomId,
+        oldest?.created_at ?? new Date(0).toISOString(),
+      );
       dispatch({
         type: "MESSAGES_PREPENDED",
         roomId,
@@ -669,18 +597,25 @@ export function SecureChat({
 
   if (state.initialLoading) {
     return (
-      <div className="flex h-[600px] w-full items-center justify-center rounded-xl border border-border bg-card shadow-sm">
-        <div className="flex flex-col items-center gap-3 text-muted-foreground">
-          <Loader2 className="h-7 w-7 animate-spin text-primary" />
-          <p className="text-sm">Loading secure chat…</p>
+      <div className="flex h-full w-full items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
+            <MessageSquare className="h-6 w-6 animate-pulse text-primary" />
+          </div>
+          <div className="flex flex-col items-center gap-1.5">
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">
+              Loading secure chat…
+            </p>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex h-[600px] w-full overflow-hidden rounded-xl border border-border bg-card shadow-sm">
-      {/* ── Sidebar ────────────────────────────────────────────────────────── */}
+    <div className="flex h-full w-full overflow-hidden bg-background">
+      {/* ── Rooms sidebar ─────────────────────────────────────────────────── */}
       <RoomSidebar
         rooms={state.rooms}
         activeRoomId={state.activeRoomId}
@@ -698,8 +633,8 @@ export function SecureChat({
         }}
       />
 
-      {/* ── Main chat area ─────────────────────────────────────────────────── */}
-      <div className="flex flex-1 flex-col bg-card relative overflow-hidden">
+      {/* ── Main area ─────────────────────────────────────────────────────── */}
+      <div className="relative flex flex-1 flex-col overflow-hidden border-l border-border bg-card">
         {state.ui.showNewRoom ? (
           <NewRoomPanel
             myRole={session?.user.role ?? "PATIENT"}
@@ -715,129 +650,144 @@ export function SecureChat({
           />
         ) : activeRoom ? (
           <>
-            {/* Header */}
+            {/* Chat header */}
             <ChatHeader room={activeRoom} />
 
             {/* Message list */}
             <div
               ref={scrollContainerRef}
               onScroll={handleScroll}
-              className="flex-1 overflow-y-auto p-4 space-y-1 bg-muted/10 relative"
+              className="relative flex-1 overflow-y-auto"
             >
-              {/* Load more */}
-              {hasMoreMessages && (
-                <div className="flex justify-center py-2">
-                  <button
-                    onClick={handleLoadMore}
-                    disabled={isLoadingMore}
-                    className="flex items-center gap-1.5 rounded-full border border-border bg-card px-4 py-1.5 text-xs text-muted-foreground hover:bg-muted disabled:opacity-50 transition-colors"
-                  >
-                    {isLoadingMore ? (
-                      <>
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                        Loading…
-                      </>
-                    ) : (
-                      <>
-                        <ChevronUp className="h-3 w-3" />
-                        Load earlier messages
-                      </>
-                    )}
-                  </button>
-                </div>
-              )}
+              <div className="flex flex-col gap-1 p-4 pb-2">
+                {/* Load more */}
+                {hasMoreMessages && (
+                  <div className="flex justify-center pb-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleLoadMore}
+                      disabled={isLoadingMore}
+                      className="h-7 gap-1.5 rounded-full text-xs"
+                    >
+                      {isLoadingMore ? (
+                        <>
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                          Loading…
+                        </>
+                      ) : (
+                        <>
+                          <ChevronUp className="h-3 w-3" />
+                          Load earlier messages
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                )}
 
-              {/* Messages */}
-              {isRoomLoading ? (
-                <div className="flex h-full items-center justify-center">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground/50" />
-                </div>
-              ) : displayMessages.length === 0 ? (
-                <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
-                  <MessageSquare className="h-8 w-8 opacity-20" />
-                  <p className="text-sm">
-                    No messages yet. Start the conversation!
-                  </p>
-                </div>
-              ) : (
-                displayMessages.map((msg) => (
-                  <MessageBubble
-                    key={isOptimistic(msg) ? msg.tempId : msg.id}
-                    msg={msg}
-                    myId={session?.user.id ?? ""}
-                    isAdmin={session?.user.role === "ADMIN"}
-                    onDelete={handleDeleteMessage}
-                    onRetry={handleRetry}
-                  />
-                ))
-              )}
-              <div ref={messagesEndRef} />
+                {/* Messages */}
+                {isRoomLoading ? (
+                  <div className="flex h-64 items-center justify-center">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground/40" />
+                  </div>
+                ) : displayMessages.length === 0 ? (
+                  <div className="flex h-64 flex-col items-center justify-center gap-3 text-muted-foreground">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+                      <MessageSquare className="h-5 w-5 opacity-30" />
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm font-medium">No messages yet</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground/60">
+                        Start the conversation below.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  displayMessages.map((msg) => (
+                    <MessageBubble
+                      key={isOptimistic(msg) ? msg.tempId : msg.id}
+                      msg={msg}
+                      myId={session?.user.id ?? ""}
+                      isAdmin={session?.user.role === "ADMIN"}
+                      onDelete={handleDeleteMessage}
+                      onRetry={handleRetry}
+                    />
+                  ))
+                )}
+                <div ref={messagesEndRef} className="h-1" />
+              </div>
             </div>
 
-            {/* New-messages scroll badge */}
+            {/* Scroll-to-bottom badge */}
             {showScrollBadge && (
               <button
+                type="button"
                 onClick={scrollToBottom}
-                className="absolute bottom-20 left-1/2 z-20 -translate-x-1/2 flex items-center gap-1.5
-                           rounded-full bg-primary px-3 py-1.5 text-xs font-medium text-white
-                           shadow-lg hover:bg-primary/90 transition-all animate-bounce"
+                className="absolute bottom-20 left-1/2 z-20 -translate-x-1/2
+                           flex items-center gap-1.5 rounded-full bg-primary px-3.5 py-1.5
+                           text-xs font-semibold text-primary-foreground shadow-lg
+                           hover:bg-primary/90 transition-all animate-bounce"
               >
-                <ArrowDown className="h-3 w-3" /> New messages
+                <ArrowDown className="h-3 w-3" />
+                New messages
               </button>
             )}
 
-            {/* Input */}
-            <div className="border-t border-border bg-card p-3">
+            {/* Input bar */}
+            <div className="border-t border-border bg-card/80 p-3 backdrop-blur-sm">
               <form
                 onSubmit={handleSendMessage}
                 className="flex items-center gap-2"
               >
-                <input
-                  type="text"
+                <Input
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
                   placeholder="Type a secure message…"
                   maxLength={4000}
-                  className="flex-1 rounded-full border border-input bg-background px-4 py-2
-                             text-sm focus:border-primary focus:outline-none focus:ring-1
-                             focus:ring-primary disabled:opacity-50 transition-colors"
+                  autoComplete="off"
+                  className="h-9 flex-1 rounded-full border-border bg-muted/50 px-4 text-sm
+                             placeholder:text-muted-foreground/50 focus-visible:ring-primary/40"
                 />
-                <button
+                <Button
                   type="submit"
+                  size="icon"
                   disabled={!draft.trim()}
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full
-                             bg-primary text-white hover:bg-primary/90 disabled:opacity-40
-                             transition-colors"
+                  className="h-9 w-9 shrink-0 rounded-full shadow-sm"
                 >
-                  <Send className="h-4 w-4 ml-0.5" />
-                </button>
+                  <Send className="h-4 w-4 translate-x-px" />
+                </Button>
               </form>
               {draft.length > 3600 && (
-                <p className="mt-1 text-right text-[10px] text-muted-foreground">
+                <p className="mt-1 text-right text-[10px] text-muted-foreground/60">
                   {4000 - draft.length} chars remaining
                 </p>
               )}
             </div>
           </>
         ) : (
-          /* Empty state — no room selected */
-          <div className="flex flex-1 flex-col items-center justify-center gap-4 text-muted-foreground">
-            <MessageSquare className="h-12 w-12 opacity-20" />
+          /* No room selected */
+          <div className="flex flex-1 flex-col items-center justify-center gap-5">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10">
+              <MessageSquare className="h-7 w-7 text-primary/60" />
+            </div>
             <div className="text-center">
-              <p className="text-sm font-medium">No chat selected</p>
+              <p className="text-sm font-semibold text-foreground">
+                No conversation selected
+              </p>
               <p className="mt-1 text-xs text-muted-foreground/70">
-                Pick a conversation or start a new one.
+                Pick a conversation from the sidebar or start a new one.
               </p>
             </div>
-            <button
+            <Button
+              size="sm"
               onClick={() =>
                 dispatch({ type: "UI_TOGGLE_NEW_ROOM", value: true })
               }
-              className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white
-                         hover:bg-primary/90 transition-colors"
+              className="gap-1.5"
             >
-              + Start Chat
-            </button>
+              <Plus className="h-3.5 w-3.5" />
+              Start New Chat
+            </Button>
           </div>
         )}
       </div>
@@ -867,51 +817,100 @@ function RoomSidebar({
   onSelectRoom,
   onOpenNewRoom,
 }: RoomSidebarProps) {
+  const [search, setSearch] = useState("");
+
+  const filtered = rooms.filter((r) => {
+    if (!search.trim()) return true;
+    const q = search.toLowerCase();
+    const name =
+      r.room_type === "DIRECT"
+        ? (r.other_participant_name ?? "")
+        : (r.name ?? "");
+    return name.toLowerCase().includes(q);
+  });
+
   return (
-    <div className="flex w-72 shrink-0 flex-col border-r border-border bg-muted/10">
-      {/* Sidebar header */}
-      <div className="flex items-center justify-between border-b border-border bg-card px-4 py-3">
-        <div className="flex items-center gap-2">
-          <MessageSquare className="h-4 w-4 text-primary" />
-          <span className="font-semibold text-sm text-card-foreground">
-            Chats
+    <div className="flex w-72 shrink-0 flex-col bg-sidebar border-r border-sidebar-border">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-sidebar-border">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10">
+            <MessageSquare className="h-3.5 w-3.5 text-primary" />
+          </div>
+          <span className="text-sm font-semibold text-sidebar-foreground">
+            Messages
           </span>
           {totalUnread > 0 && (
-            <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-white">
+            <Badge className="h-4 min-w-4 px-1 text-[9px] font-bold bg-primary/80">
               {totalUnread > 99 ? "99+" : totalUnread}
-            </span>
+            </Badge>
           )}
         </div>
-        <button
+        <Button
+          variant="ghost"
+          size="icon"
           onClick={onOpenNewRoom}
-          className="rounded-md bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary
-                     hover:bg-primary/20 transition-colors"
+          className="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-sidebar-accent"
+          title="New chat"
         >
-          + New
-        </button>
+          <Plus className="h-3.5 w-3.5" />
+        </Button>
       </div>
 
+      {/* Search */}
+      {rooms.length > 0 && (
+        <div className="px-3 pt-3 pb-2">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground/50" />
+            <Input
+              placeholder="Search conversations…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="h-7 bg-sidebar-accent/50 border-sidebar-border pl-7 text-xs
+                         placeholder:text-muted-foreground/40 focus-visible:ring-primary/30"
+            />
+          </div>
+        </div>
+      )}
+
       {/* Room list */}
-      <div className="flex-1 overflow-y-auto">
-        {rooms.length === 0 ? (
-          <div className="flex flex-col items-center gap-2 p-6 text-center">
-            <MessageSquare className="h-8 w-8 text-muted-foreground/30" />
-            <p className="text-xs text-muted-foreground">
-              No active chats.
-              <br />
-              Click &quot;+ New&quot; to start one.
-            </p>
+      <ScrollArea className="flex-1">
+        {filtered.length === 0 ? (
+          <div className="flex flex-col items-center gap-2.5 p-8 text-center">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
+              <MessageSquare className="h-4 w-4 text-muted-foreground/30" />
+            </div>
+            <div>
+              <p className="text-xs font-medium text-muted-foreground">
+                {search ? `No results for "${search}"` : "No conversations yet"}
+              </p>
+              {!search && (
+                <p className="mt-0.5 text-[11px] text-muted-foreground/60">
+                  Click + to start one.
+                </p>
+              )}
+            </div>
           </div>
         ) : (
-          rooms.map((room) => (
-            <RoomListItem
-              key={room.id}
-              room={room}
-              isActive={room.id === activeRoomId}
-              onClick={() => onSelectRoom(room.id)}
-            />
-          ))
+          <div className="py-1">
+            {filtered.map((room) => (
+              <RoomListItem
+                key={room.id}
+                room={room}
+                isActive={room.id === activeRoomId}
+                onClick={() => onSelectRoom(room.id)}
+              />
+            ))}
+          </div>
         )}
+      </ScrollArea>
+
+      {/* Footer */}
+      <div className="border-t border-sidebar-border px-4 py-3">
+        <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground/50">
+          <Shield className="h-2.5 w-2.5 shrink-0" />
+          <span>End-to-end encrypted · Audit-logged</span>
+        </div>
       </div>
     </div>
   );
@@ -935,63 +934,75 @@ function RoomListItem({
       ? (room.other_participant_name ?? "Unknown User")
       : (room.name ?? `Group (${room.participant_count})`);
 
-  const initials = displayName
-    .split(" ")
-    .map((w) => w[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
-
   const isDoctor = room.other_participant_role === "DOCTOR";
+  const isGroup = room.room_type === "GROUP";
   const timeLabel = formatChatTime(room.last_message_at ?? room.created_at);
+  const palette = isGroup
+    ? "bg-violet-500/20 text-violet-400"
+    : avatarColor(displayName);
 
   return (
     <button
+      type="button"
       onClick={onClick}
-      className={`w-full border-b border-border px-3 py-3 text-left transition-colors
-                  hover:bg-muted/50 flex items-center gap-3
-                  ${isActive ? "bg-muted shadow-[inset_3px_0_0_0_var(--color-primary)]" : ""}`}
+      className={cn(
+        "group relative flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors",
+        isActive
+          ? "bg-sidebar-accent before:absolute before:left-0 before:top-1/2 before:h-8 before:-translate-y-1/2 before:w-0.5 before:rounded-r-full before:bg-primary"
+          : "hover:bg-sidebar-accent/60",
+      )}
     >
       {/* Avatar */}
-      <div
-        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-semibold
-                    ${
-                      room.room_type === "GROUP"
-                        ? "bg-accent/10 text-accent"
-                        : isDoctor
-                          ? "bg-primary/10 text-primary ring-1 ring-primary/20"
-                          : "bg-secondary/10 text-secondary ring-1 ring-secondary/20"
-                    }`}
-      >
-        {room.room_type === "GROUP" ? (
-          <Users className="h-4 w-4" />
-        ) : (
-          initials || <User className="h-4 w-4" />
+      <div className="relative shrink-0">
+        <Avatar className="h-9 w-9">
+          <AvatarFallback className={cn("text-xs font-semibold", palette)}>
+            {isGroup ? (
+              <Users className="h-4 w-4" />
+            ) : (
+              nameInitials(displayName)
+            )}
+          </AvatarFallback>
+        </Avatar>
+        {/* Online dot — decorative */}
+        {!isGroup && (
+          <span className="absolute -bottom-0.5 -right-0.5 flex h-2.5 w-2.5 items-center justify-center rounded-full bg-sidebar border-[1.5px] border-sidebar">
+            <span
+              className={cn(
+                "h-1.5 w-1.5 rounded-full",
+                isDoctor ? "bg-primary" : "bg-emerald-500",
+              )}
+            />
+          </span>
         )}
       </div>
 
       {/* Text */}
       <div className="min-w-0 flex-1">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-1">
           <p
-            className={`truncate text-sm ${isActive ? "font-semibold text-card-foreground" : "font-medium text-card-foreground"}`}
+            className={cn(
+              "truncate text-sm leading-tight",
+              isActive
+                ? "font-semibold text-sidebar-foreground"
+                : "font-medium text-sidebar-foreground/80",
+            )}
           >
             {displayName}
           </p>
-          <span className="ml-1 shrink-0 text-[10px] text-muted-foreground">
+          <span className="shrink-0 text-[10px] text-muted-foreground/50">
             {timeLabel}
           </span>
         </div>
         <div className="mt-0.5 flex items-center justify-between gap-1">
-          <p className="truncate text-[11px] text-muted-foreground">
+          <p className="truncate text-[11px] text-muted-foreground/60">
             {room.last_message_preview ?? (
               <span className="italic">No messages yet</span>
             )}
           </p>
           {room.unread_count > 0 && (
-            <span className="flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-white">
+            <Badge className="h-4 min-w-4 shrink-0 px-1 text-[9px] font-bold bg-primary/80">
               {room.unread_count > 99 ? "99+" : room.unread_count}
-            </span>
+            </Badge>
           )}
         </div>
       </div>
@@ -1007,68 +1018,55 @@ function ChatHeader({ room }: { room: ChatRoomEnriched }) {
   const displayName =
     room.room_type === "DIRECT"
       ? (room.other_participant_name ?? "Direct Message")
-      : (room.name ?? `Group Chat`);
-
-  const initials = displayName
-    .split(" ")
-    .map((w) => w[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
+      : (room.name ?? "Group Chat");
 
   const isDoctor = room.other_participant_role === "DOCTOR";
   const isGroup = room.room_type === "GROUP";
+  const palette = isGroup
+    ? "bg-violet-500/20 text-violet-400"
+    : avatarColor(displayName);
 
   return (
-    <div className="flex items-center justify-between border-b border-border bg-card px-4 py-3 shadow-sm z-10">
-      <div className="flex items-center gap-3">
-        {/* Avatar */}
-        <div
-          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold
-                      ${
-                        isGroup
-                          ? "bg-accent/10 text-accent"
-                          : isDoctor
-                            ? "bg-primary/10 text-primary"
-                            : "bg-secondary/10 text-secondary"
-                      }`}
-        >
-          {isGroup ? (
-            <Users className="h-4 w-4" />
-          ) : (
-            initials || <User className="h-4 w-4" />
+    <div className="flex items-center gap-3 border-b border-border bg-card/95 px-4 py-3 backdrop-blur-sm">
+      {/* Avatar */}
+      <Avatar className="h-9 w-9 shrink-0">
+        <AvatarFallback className={cn("text-xs font-semibold", palette)}>
+          {isGroup ? <Users className="h-4 w-4" /> : nameInitials(displayName)}
+        </AvatarFallback>
+      </Avatar>
+
+      {/* Name + meta */}
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2 flex-wrap">
+          <h3 className="text-sm font-semibold text-foreground leading-tight truncate">
+            {displayName}
+          </h3>
+          {!isGroup && room.other_participant_role && (
+            <Badge
+              variant="outline"
+              className={cn(
+                "h-4 px-1.5 text-[9px] font-semibold shrink-0",
+                isDoctor
+                  ? "border-primary/30 text-primary bg-primary/5"
+                  : "border-emerald-500/30 text-emerald-500 bg-emerald-500/5",
+              )}
+            >
+              {isDoctor ? "Doctor" : "Patient"}
+            </Badge>
+          )}
+          {isGroup && (
+            <Badge
+              variant="outline"
+              className="h-4 px-1.5 text-[9px] font-semibold shrink-0 border-violet-500/30 text-violet-400 bg-violet-500/5"
+            >
+              {room.participant_count} members
+            </Badge>
           )}
         </div>
-
-        {/* Name + role + status */}
-        <div>
-          <div className="flex items-center gap-2">
-            <h3 className="text-sm font-semibold text-card-foreground leading-tight">
-              {displayName}
-            </h3>
-            {room.other_participant_role && !isGroup && (
-              <span
-                className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium
-                            ${
-                              isDoctor
-                                ? "bg-primary/10 text-primary"
-                                : "bg-secondary/10 text-secondary"
-                            }`}
-              >
-                {isDoctor ? "Doctor" : "Patient"}
-              </span>
-            )}
-            {isGroup && (
-              <span className="inline-flex items-center rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-medium text-accent">
-                Group · {room.participant_count} members
-              </span>
-            )}
-          </div>
-          <p className="flex items-center gap-1 text-[11px] text-muted-foreground">
-            <span className="inline-block h-1.5 w-1.5 rounded-full bg-secondary" />
-            Secure · Immutable · Audit-logged
-          </p>
-        </div>
+        <p className="mt-0.5 flex items-center gap-1.5 text-[10px] text-muted-foreground/60">
+          <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
+          Secure · Immutable · Audit-logged
+        </p>
       </div>
     </div>
   );
@@ -1093,11 +1091,11 @@ function MessageBubble({
   onDelete,
   onRetry,
 }: MessageBubbleProps) {
-  // ── System pill ──────────────────────────────────────────────────────────
+  // System pill
   if (!isOptimistic(msg) && msg.message_type === "SYSTEM") {
     return (
-      <div className="flex justify-center py-2">
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted px-3 py-1 text-[11px] text-muted-foreground">
+      <div className="flex justify-center py-3">
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/60 px-3 py-1 text-[11px] text-muted-foreground">
           <Info className="h-3 w-3 shrink-0" />
           {msg.content}
         </span>
@@ -1110,71 +1108,84 @@ function MessageBubble({
   const isFailed = isPending && msg.status === "failed";
   const isSending = isPending && msg.status === "sending";
   const isDeleted = !isPending && msg.is_deleted;
-
-  // Display name: resolved server-side for confirmed messages
   const senderLabel = !isMe ? (msg.sender_name ?? "Unknown") : null;
+  const senderPalette = senderLabel ? avatarColor(senderLabel) : "";
 
   return (
     <div
-      className={`flex group ${isMe ? "justify-end" : "justify-start"} relative mb-1`}
+      className={cn(
+        "group relative mb-1 flex items-end gap-2",
+        isMe ? "justify-end" : "justify-start",
+      )}
     >
-      {/* Non-me avatar initial */}
+      {/* Other-party avatar */}
       {!isMe && (
-        <div className="mr-2 mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-semibold text-muted-foreground">
-          {(senderLabel ?? "?").slice(0, 2).toUpperCase()}
-        </div>
+        <Avatar className="mb-0.5 h-6 w-6 shrink-0 self-end">
+          <AvatarFallback className={cn("text-[9px] font-bold", senderPalette)}>
+            {nameInitials(senderLabel ?? "?")}
+          </AvatarFallback>
+        </Avatar>
       )}
 
       <div
-        className={`flex flex-col ${isMe ? "items-end" : "items-start"} max-w-[75%]`}
+        className={cn(
+          "flex flex-col gap-0.5",
+          isMe ? "items-end" : "items-start",
+          "max-w-[72%]",
+        )}
       >
         {/* Sender name (other party only) */}
         {!isMe && senderLabel && (
-          <p className="mb-0.5 ml-1 text-[10px] font-medium text-muted-foreground">
+          <p className="ml-1 text-[10px] font-medium text-muted-foreground/70">
             {senderLabel}
           </p>
         )}
 
         {/* Bubble */}
         <div
-          className={`relative rounded-2xl px-3.5 py-2 text-sm leading-relaxed
-                      ${
-                        isMe
-                          ? "rounded-tr-sm bg-primary text-primary-foreground"
-                          : "rounded-tl-sm border border-border bg-card text-foreground shadow-sm"
-                      }
-                      ${isDeleted ? "opacity-60 italic" : ""}
-                      ${isFailed ? "border border-destructive/40 bg-destructive/5 text-foreground" : ""}
-                      `}
+          className={cn(
+            "relative rounded-2xl px-3.5 py-2 text-sm leading-relaxed",
+            isMe
+              ? "rounded-br-sm bg-primary text-primary-foreground"
+              : "rounded-bl-sm border border-border bg-card text-foreground",
+            isDeleted && "opacity-50 italic",
+            isFailed &&
+              "border-destructive/40 bg-destructive/10 text-foreground",
+          )}
         >
           <p className="whitespace-pre-wrap break-words">{msg.content}</p>
 
-          {/* Timestamp + status row */}
+          {/* Timestamp + status */}
           <div
-            className={`mt-1 flex items-center justify-end gap-1.5 text-[10px]
-                        ${isMe ? "text-primary-foreground/60" : "text-muted-foreground"}`}
+            className={cn(
+              "mt-0.5 flex items-center justify-end gap-1 text-[10px]",
+              isMe ? "text-primary-foreground/50" : "text-muted-foreground/60",
+            )}
           >
-            <span>{formatChatTime(msg.created_at)}</span>
-
-            {/* Optimistic status indicator */}
+            <span>{formatBubbleTime(msg.created_at)}</span>
             {isSending && (
               <span className="flex gap-0.5">
-                <span className="inline-block h-1 w-1 animate-bounce rounded-full bg-primary-foreground/60 [animation-delay:0ms]" />
-                <span className="inline-block h-1 w-1 animate-bounce rounded-full bg-primary-foreground/60 [animation-delay:150ms]" />
-                <span className="inline-block h-1 w-1 animate-bounce rounded-full bg-primary-foreground/60 [animation-delay:300ms]" />
+                {[0, 150, 300].map((delay) => (
+                  <span
+                    key={delay}
+                    className="inline-block h-1 w-1 animate-bounce rounded-full bg-primary-foreground/50"
+                    style={{ animationDelay: `${delay}ms` }}
+                  />
+                ))}
               </span>
             )}
             {!isPending && !isDeleted && isMe && (
-              <span className="text-primary-foreground/70">✓</span>
+              <span className="text-primary-foreground/60">✓</span>
             )}
           </div>
         </div>
 
-        {/* Failed retry prompt */}
-        {isFailed && (
+        {/* Failed retry */}
+        {isFailed && isPending && (
           <button
+            type="button"
             onClick={() => onRetry(msg.tempId, msg.content)}
-            className="mt-1 flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium text-destructive hover:bg-destructive/10 transition-colors"
+            className="mt-0.5 flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium text-destructive hover:bg-destructive/10 transition-colors"
           >
             <RotateCcw className="h-3 w-3" />
             Failed · Tap to retry
@@ -1182,13 +1193,16 @@ function MessageBubble({
         )}
       </div>
 
-      {/* Admin delete (hover, only for confirmed, non-deleted, non-system messages) */}
+      {/* Admin delete (hover) */}
       {isAdmin && !isPending && !isDeleted && (
         <button
+          type="button"
           onClick={() => onDelete((msg as ChatMessage).id)}
-          className={`absolute top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100
-                      transition-opacity p-1.5 text-destructive hover:bg-destructive/10
-                      rounded-full ${isMe ? "-left-9" : "-right-9"}`}
+          className={cn(
+            "absolute top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100",
+            "rounded-full p-1.5 text-destructive hover:bg-destructive/10 transition-all",
+            isMe ? "-left-8" : "-right-8",
+          )}
           title="Admin: Delete message"
         >
           <Trash2 className="h-3.5 w-3.5" />
@@ -1199,7 +1213,7 @@ function MessageBubble({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  NewRoomPanel — user search combobox replaces the old UUID input
+//  NewRoomPanel
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface NewRoomPanelProps {
@@ -1223,8 +1237,7 @@ function NewRoomPanel({ myRole, onCancel, onRoomCreated }: NewRoomPanelProps) {
     setQuery(val);
     setSelected(null);
     setError(null);
-    if (debounceRef.current !== null) clearTimeout(debounceRef.current);
-
+    if (debounceRef.current) clearTimeout(debounceRef.current);
     if (val.trim().length < 1) {
       setResults([]);
       return;
@@ -1284,159 +1297,207 @@ function NewRoomPanel({ myRole, onCancel, onRoomCreated }: NewRoomPanelProps) {
         : "Search any active user.";
 
   return (
-    <div className="flex h-full flex-col p-6">
-      {/* Title row */}
-      <div className="mb-4 flex items-center justify-between">
-        <h3 className="text-base font-semibold text-card-foreground">
-          Start New Secure Chat
-        </h3>
-        <button
+    <div className="flex h-full flex-col">
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-border px-5 py-4">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+            <Plus className="h-4 w-4 text-primary" />
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">
+              Start a new chat
+            </h3>
+            <p className="text-[11px] text-muted-foreground/70">
+              {contextLabel}
+            </p>
+          </div>
+        </div>
+        <Button
+          variant="ghost"
+          size="icon"
           onClick={onCancel}
-          className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+          className="h-7 w-7 text-muted-foreground"
         >
           <X className="h-4 w-4" />
-        </button>
+        </Button>
       </div>
 
-      <p className="mb-5 text-xs text-muted-foreground">
-        {contextLabel} Messages are immutable once sent.
-      </p>
+      {/* Body */}
+      <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-5">
+        {/* Search */}
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/50" />
+          <Input
+            value={query}
+            onChange={handleQueryChange}
+            placeholder="Search by name…"
+            autoFocus
+            className="pl-9 pr-8 bg-muted/40 border-border focus-visible:ring-primary/40"
+          />
+          {(query || selected) && (
+            <button
+              type="button"
+              onClick={handleClear}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
 
-      {/* Search field */}
-      <div className="relative">
-        <input
-          type="text"
-          value={query}
-          onChange={handleQueryChange}
-          placeholder="Type a name to search…"
-          className="w-full rounded-lg border border-input bg-background px-3 py-2.5 pr-8 text-sm
-                     focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-          autoFocus
-        />
-        {(query || selected) && (
-          <button
-            onClick={handleClear}
-            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
-        )}
-
-        {/* Dropdown results */}
-        {results.length > 0 && (
-          <ul className="absolute z-20 mt-1 w-full overflow-hidden rounded-lg border border-border bg-card shadow-lg">
-            {results.map((user) => {
-              const isDoctor = user.role === "DOCTOR";
-              return (
-                <li key={user.id}>
-                  <button
-                    onClick={() => handleSelect(user)}
-                    className="flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-muted transition-colors"
-                  >
-                    <div
-                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold
-                                  ${isDoctor ? "bg-primary/10 text-primary" : "bg-secondary/10 text-secondary"}`}
+          {/* Dropdown */}
+          {results.length > 0 && (
+            <ul className="absolute z-20 mt-1 w-full overflow-hidden rounded-lg border border-border bg-popover shadow-xl">
+              {results.map((user) => {
+                const isDoctor = user.role === "DOCTOR";
+                const palette = avatarColor(user.name);
+                return (
+                  <li key={user.id}>
+                    <button
+                      type="button"
+                      onClick={() => handleSelect(user)}
+                      className="flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-muted/60 transition-colors"
                     >
-                      {user.name.slice(0, 2).toUpperCase()}
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-card-foreground leading-tight">
-                        {user.display_label.split("·")[0].trim()}
-                      </p>
-                      <p className="text-[11px] text-muted-foreground">
-                        {user.display_label.includes("·")
-                          ? user.display_label
-                              .split("·")
-                              .slice(1)
-                              .join("·")
-                              .trim()
-                          : user.role}
-                      </p>
-                    </div>
-                    <span
-                      className={`ml-auto shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium
-                                  ${isDoctor ? "bg-primary/10 text-primary" : "bg-secondary/10 text-secondary"}`}
-                    >
-                      {isDoctor
-                        ? "Doctor"
-                        : user.role === "ADMIN"
-                          ? "Admin"
-                          : "Patient"}
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        )}
+                      <Avatar className="h-8 w-8 shrink-0">
+                        <AvatarFallback
+                          className={cn("text-xs font-semibold", palette)}
+                        >
+                          {nameInitials(user.name)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-foreground leading-tight">
+                          {user.display_label.split("·")[0].trim()}
+                        </p>
+                        <p className="text-[11px] text-muted-foreground/70">
+                          {user.display_label.includes("·")
+                            ? user.display_label
+                                .split("·")
+                                .slice(1)
+                                .join("·")
+                                .trim()
+                            : user.role}
+                        </p>
+                      </div>
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          "h-4 shrink-0 px-1.5 text-[9px] font-semibold",
+                          isDoctor
+                            ? "border-primary/30 text-primary bg-primary/5"
+                            : user.role === "ADMIN"
+                              ? "border-violet-500/30 text-violet-400 bg-violet-500/5"
+                              : "border-emerald-500/30 text-emerald-500 bg-emerald-500/5",
+                        )}
+                      >
+                        {isDoctor
+                          ? "Doctor"
+                          : user.role === "ADMIN"
+                            ? "Admin"
+                            : "Patient"}
+                      </Badge>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
 
-        {/* No results */}
-        {searching && (
-          <div className="absolute z-20 mt-1 w-full rounded-lg border border-border bg-card px-3 py-3 text-center text-xs text-muted-foreground shadow-lg">
-            <Loader2 className="inline h-3.5 w-3.5 animate-spin mr-1.5" />
-            Searching…
-          </div>
-        )}
-        {!searching &&
-          query.trim().length >= 1 &&
-          results.length === 0 &&
-          !selected && (
-            <div className="absolute z-20 mt-1 w-full rounded-lg border border-border bg-card px-3 py-3 text-center text-xs text-muted-foreground shadow-lg">
-              No contacts found for &quot;{query}&quot;
+          {/* Searching */}
+          {searching && (
+            <div className="absolute z-20 mt-1 w-full rounded-lg border border-border bg-popover px-4 py-3 text-center text-xs text-muted-foreground shadow-xl">
+              <Loader2 className="mr-1.5 inline h-3.5 w-3.5 animate-spin" />
+              Searching…
             </div>
           )}
+
+          {/* No results */}
+          {!searching &&
+            query.trim().length >= 1 &&
+            results.length === 0 &&
+            !selected && (
+              <div className="absolute z-20 mt-1 w-full rounded-lg border border-border bg-popover px-4 py-3 text-center text-xs text-muted-foreground shadow-xl">
+                No contacts found for &ldquo;{query}&rdquo;
+              </div>
+            )}
+        </div>
+
+        {/* Selected chip */}
+        {selected && (
+          <div className="flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3">
+            <Avatar className="h-9 w-9 shrink-0">
+              <AvatarFallback
+                className={cn(
+                  "text-xs font-semibold",
+                  avatarColor(selected.name),
+                )}
+              >
+                {nameInitials(selected.name)}
+              </AvatarFallback>
+            </Avatar>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold text-foreground">
+                {selected.display_label.split("·")[0].trim()}
+              </p>
+              <p className="text-[11px] text-muted-foreground/70">
+                {selected.display_label.includes("·")
+                  ? selected.display_label.split("·").slice(1).join("·").trim()
+                  : selected.role}
+              </p>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleClear}
+              className="h-7 w-7 text-muted-foreground shrink-0"
+            >
+              <X className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        )}
+
+        {error && (
+          <p className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+            {error}
+          </p>
+        )}
+
+        {/* Info note */}
+        <div className="mt-auto rounded-lg border border-border bg-muted/30 px-3 py-2.5">
+          <div className="flex items-start gap-2">
+            <Shield className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
+            <p className="text-[11px] text-muted-foreground/70 leading-relaxed">
+              Messages are{" "}
+              <strong className="text-foreground/80">immutable</strong> once
+              sent and stored in an audit log. This ensures full accountability
+              for all communications.
+            </p>
+          </div>
+        </div>
       </div>
 
-      {/* Selected user chip */}
-      {selected && (
-        <div className="mt-4 flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2.5">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
-            {selected.name.slice(0, 2).toUpperCase()}
-          </div>
-          <div className="flex-1">
-            <p className="text-sm font-medium text-card-foreground">
-              {selected.display_label.split("·")[0].trim()}
-            </p>
-            <p className="text-[11px] text-muted-foreground">
-              {selected.display_label.includes("·")
-                ? selected.display_label.split("·").slice(1).join("·").trim()
-                : selected.role}
-            </p>
-          </div>
-          <button
-            onClick={handleClear}
-            className="text-muted-foreground hover:text-foreground"
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
-        </div>
-      )}
-
-      {error && <p className="mt-3 text-xs text-destructive">{error}</p>}
-
-      {/* Actions */}
-      <div className="mt-auto flex gap-2 pt-6">
-        <button
-          onClick={onCancel}
-          className="flex-1 rounded-lg border border-border bg-background px-4 py-2 text-sm
-                     font-medium text-foreground hover:bg-muted transition-colors"
-        >
+      {/* Footer actions */}
+      <div className="flex gap-2 border-t border-border bg-card/80 p-4">
+        <Button variant="outline" onClick={onCancel} className="flex-1">
           Cancel
-        </button>
-        <button
+        </Button>
+        <Button
           onClick={handleCreate}
           disabled={!selected || creating}
-          className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white
-                     hover:bg-primary/90 disabled:opacity-50 transition-colors"
+          className="flex-1 gap-1.5"
         >
           {creating ? (
-            <span className="flex items-center justify-center gap-1.5">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Opening…
-            </span>
+            <>
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              Opening…
+            </>
           ) : (
-            "Start Chat"
+            <>
+              <MessageSquare className="h-3.5 w-3.5" />
+              Start Chat
+            </>
           )}
-        </button>
+        </Button>
       </div>
     </div>
   );

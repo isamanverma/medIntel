@@ -47,7 +47,7 @@ function isSecureContext(): boolean {
 }
 
 /** Cookie max-age in seconds — matches the backend JWT expiry (default 30 min). */
-const COOKIE_MAX_AGE_SECONDS = 60 * 30;
+const COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24; // 1 day
 
 // ─── Route handler ───────────────────────────────────────────────
 

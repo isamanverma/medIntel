@@ -325,6 +325,22 @@ export async function createDoctorProfile(
   });
 }
 
+export interface UpdateDoctorProfileData {
+  first_name?: string;
+  last_name?: string;
+  specialization?: string;
+  license_number?: string;
+}
+
+export async function updateDoctorProfile(
+  data: UpdateDoctorProfileData,
+): Promise<DoctorProfile> {
+  return request<DoctorProfile>("/api/profiles/doctor/me", {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+}
+
 // — Create Appointments ——————————————————————————
 
 export interface CreateAppointmentData {

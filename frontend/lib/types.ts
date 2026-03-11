@@ -324,8 +324,17 @@ export interface ChatUserResult {
  *   this week       → weekday short name, e.g. "Mon"
  *   older           → "Jan 12"
  */
+/** Ensure an ISO string is always parsed as UTC, not local time. */
+function toUTC(isoString: string): Date {
+  // If the string has no timezone suffix (Z or ±HH:MM), treat it as UTC
+  const normalized = /[Zz]$|[+-]\d{2}:\d{2}$/.test(isoString)
+    ? isoString
+    : `${isoString}Z`;
+  return new Date(normalized);
+}
+
 export function formatChatTime(isoString: string): string {
-  const date = new Date(isoString);
+  const date = toUTC(isoString);
   if (Number.isNaN(date.getTime())) return "";
 
   const now = new Date();
@@ -336,7 +345,10 @@ export function formatChatTime(isoString: string): string {
   if (diffMin < 1) return "now";
   if (diffMin < 60) return `${diffMin}m`;
   if (diffHrs < 24) {
-    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    return date.toLocaleTimeString(undefined, {
+      hour: "numeric",
+      minute: "2-digit",
+    });
   }
 
   const yesterday = new Date(now);
@@ -344,9 +356,52 @@ export function formatChatTime(isoString: string): string {
   if (date.toDateString() === yesterday.toDateString()) return "Yesterday";
 
   if (diffHrs < 168) {
-    // Within the last 7 days → show weekday
-    return date.toLocaleDateString([], { weekday: "short" });
+    return date.toLocaleDateString(undefined, { weekday: "short" });
   }
 
-  return date.toLocaleDateString([], { month: "short", day: "numeric" });
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+/**
+ * Full local timestamp for inside message bubbles.
+ * Always shows the exact local time, plus the date when it's not today.
+ *
+ * Examples:
+ *   same day  → "2:45 PM"
+ *   yesterday → "Yesterday · 9:10 AM"
+ *   older     → "Mon, Apr 14 · 11:30 PM"
+ */
+export function formatBubbleTime(isoString: string): string {
+  const date = toUTC(isoString);
+  if (Number.isNaN(date.getTime())) return "";
+
+  const now = new Date();
+  const timePart = date.toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+
+  const isToday =
+    date.getDate() === now.getDate() &&
+    date.getMonth() === now.getMonth() &&
+    date.getFullYear() === now.getFullYear();
+
+  if (isToday) return timePart;
+
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const isYesterday =
+    date.getDate() === yesterday.getDate() &&
+    date.getMonth() === yesterday.getMonth() &&
+    date.getFullYear() === yesterday.getFullYear();
+
+  if (isYesterday) return `Yesterday · ${timePart}`;
+
+  const datePart = date.toLocaleDateString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
+
+  return `${datePart} · ${timePart}`;
 }
