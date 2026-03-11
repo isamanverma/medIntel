@@ -8,7 +8,9 @@ import {
   Phone,
   Activity,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import { usePagination } from "@/hooks/use-pagination";
+import { Pagination } from "@/components/ui/Pagination";
 import { cn } from "@/lib/utils";
 import {
   Card,
@@ -151,10 +153,14 @@ export function PatientsView({
 }: PatientsViewProps) {
   const [search, setSearch] = useState("");
 
-  const filtered = patients.filter((p) => {
+  const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return `${p.first_name ?? ""} ${p.last_name ?? ""}`.toLowerCase().includes(q);
-  });
+    return patients.filter((p) =>
+      `${p.first_name ?? ""} ${p.last_name ?? ""}`.toLowerCase().includes(q),
+    );
+  }, [patients, search]);
+
+  const pagination = usePagination(filtered, { pageSize: 12 });
 
   return (
     <div className="space-y-6">
@@ -213,7 +219,8 @@ export function PatientsView({
               No patients yet
             </p>
             <p className="mt-2 max-w-xs text-sm text-muted-foreground/60">
-              Add patients to start managing their care and communicate securely.
+              Add patients to start managing their care and communicate
+              securely.
             </p>
             <Button onClick={onAddPatient} className="mt-6 gap-2">
               <UserPlus className="h-4 w-4" />
@@ -236,15 +243,28 @@ export function PatientsView({
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
-          {filtered.map((patient) => (
-            <PatientCard
-              key={patient.profile_id}
-              patient={patient}
-              onChat={() => onChatWithPatient(patient.user_id)}
-            />
-          ))}
-        </div>
+        <>
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
+            {pagination.pageItems.map((patient) => (
+              <PatientCard
+                key={patient.profile_id}
+                patient={patient}
+                onChat={() => onChatWithPatient(patient.user_id)}
+              />
+            ))}
+          </div>
+          <Pagination
+            page={pagination.page}
+            totalPages={pagination.totalPages}
+            totalItems={pagination.totalItems}
+            pageSize={pagination.pageSize}
+            hasNext={pagination.hasNext}
+            hasPrev={pagination.hasPrev}
+            onNext={pagination.next}
+            onPrev={pagination.prev}
+            onGoTo={pagination.goTo}
+          />
+        </>
       )}
     </div>
   );

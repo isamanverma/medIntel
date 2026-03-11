@@ -7,8 +7,10 @@ import {
   Phone,
   Search,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import type { MappingDoctor } from "@/lib/types";
+import { usePagination } from "@/hooks/use-pagination";
+import { Pagination } from "@/components/ui/Pagination";
 import { cn } from "@/lib/utils";
 import {
   Card,
@@ -144,13 +146,16 @@ export function DoctorsView({
 }: DoctorsViewProps) {
   const [search, setSearch] = useState("");
 
-  const filtered = doctors.filter((d) => {
+  const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return (
-      `${d.first_name} ${d.last_name}`.toLowerCase().includes(q) ||
-      (d.specialization ?? "").toLowerCase().includes(q)
+    return doctors.filter(
+      (d) =>
+        `${d.first_name} ${d.last_name}`.toLowerCase().includes(q) ||
+        (d.specialization ?? "").toLowerCase().includes(q),
     );
-  });
+  }, [doctors, search]);
+
+  const pagination = usePagination(filtered, { pageSize: 9 });
 
   return (
     <div className="space-y-6">
@@ -221,16 +226,29 @@ export function DoctorsView({
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
-          {filtered.map((doctor) => (
-            <DoctorCard
-              key={doctor.profile_id}
-              doctor={doctor}
-              onChat={() => onChatWithDoctor(doctor.user_id)}
-              onBook={() => onBookWithDoctor(doctor.profile_id)}
-            />
-          ))}
-        </div>
+        <>
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
+            {pagination.pageItems.map((doctor) => (
+              <DoctorCard
+                key={doctor.profile_id}
+                doctor={doctor}
+                onChat={() => onChatWithDoctor(doctor.user_id)}
+                onBook={() => onBookWithDoctor(doctor.profile_id)}
+              />
+            ))}
+          </div>
+          <Pagination
+            page={pagination.page}
+            totalPages={pagination.totalPages}
+            totalItems={pagination.totalItems}
+            pageSize={pagination.pageSize}
+            hasNext={pagination.hasNext}
+            hasPrev={pagination.hasPrev}
+            onNext={pagination.next}
+            onPrev={pagination.prev}
+            onGoTo={pagination.goTo}
+          />
+        </>
       )}
     </div>
   );

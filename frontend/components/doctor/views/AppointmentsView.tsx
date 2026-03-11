@@ -9,7 +9,9 @@ import {
   TrendingUp,
   RefreshCw,
 } from "lucide-react";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { usePagination } from "@/hooks/use-pagination";
+import { Pagination } from "@/components/ui/Pagination";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -232,24 +234,39 @@ export function AppointmentsView({
     return map;
   }, [patients]);
 
-  const counts: Record<StatusFilter, number> = {
-    ALL: upcoming.length,
-    PENDING: upcoming.filter((a) => a.status === "PENDING").length,
-    CONFIRMED: upcoming.filter((a) => a.status === "CONFIRMED").length,
-    COMPLETED: upcoming.filter((a) => a.status === "COMPLETED").length,
-    CANCELLED: upcoming.filter((a) => a.status === "CANCELLED").length,
-  };
-
-  const todayCount = upcoming.filter((a) => isToday(a.scheduled_time)).length;
-
-  const filtered =
-    filter === "ALL" ? upcoming : upcoming.filter((a) => a.status === filter);
-
-  const sorted = [...filtered].sort(
-    (a, b) =>
-      new Date(a.scheduled_time).getTime() -
-      new Date(b.scheduled_time).getTime(),
+  const counts: Record<StatusFilter, number> = useMemo(
+    () => ({
+      ALL: upcoming.length,
+      PENDING: upcoming.filter((a) => a.status === "PENDING").length,
+      CONFIRMED: upcoming.filter((a) => a.status === "CONFIRMED").length,
+      COMPLETED: upcoming.filter((a) => a.status === "COMPLETED").length,
+      CANCELLED: upcoming.filter((a) => a.status === "CANCELLED").length,
+    }),
+    [upcoming],
   );
+
+  const todayCount = useMemo(
+    () => upcoming.filter((a) => isToday(a.scheduled_time)).length,
+    [upcoming],
+  );
+
+  const sorted = useMemo(() => {
+    const filtered =
+      filter === "ALL" ? upcoming : upcoming.filter((a) => a.status === filter);
+    return [...filtered].sort(
+      (a, b) =>
+        new Date(a.scheduled_time).getTime() -
+        new Date(b.scheduled_time).getTime(),
+    );
+  }, [upcoming, filter]);
+
+  const pagination = usePagination(sorted, { pageSize: 10 });
+
+  // Reset to page 1 when the filter changes
+  useEffect(() => {
+    pagination.reset();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filter]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -363,18 +380,33 @@ export function AppointmentsView({
             )}
           </CardContent>
         ) : (
-          <div className="divide-y divide-border">
-            {sorted.map((appt) => (
-              <AppointmentRow
-                key={appt.id}
-                appt={appt}
-                patientName={
-                  patientNameMap.get(appt.patient_id) ?? "Unknown Patient"
-                }
-                onStatusUpdate={onStatusUpdate}
+          <>
+            <div className="divide-y divide-border">
+              {pagination.pageItems.map((appt) => (
+                <AppointmentRow
+                  key={appt.id}
+                  appt={appt}
+                  patientName={
+                    patientNameMap.get(appt.patient_id) ?? "Unknown Patient"
+                  }
+                  onStatusUpdate={onStatusUpdate}
+                />
+              ))}
+            </div>
+            <div className="px-6">
+              <Pagination
+                page={pagination.page}
+                totalPages={pagination.totalPages}
+                totalItems={pagination.totalItems}
+                pageSize={pagination.pageSize}
+                hasNext={pagination.hasNext}
+                hasPrev={pagination.hasPrev}
+                onNext={pagination.next}
+                onPrev={pagination.prev}
+                onGoTo={pagination.goTo}
               />
-            ))}
-          </div>
+            </div>
+          </>
         )}
       </Card>
     </div>

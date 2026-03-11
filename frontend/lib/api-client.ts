@@ -556,9 +556,19 @@ export async function getDoctorCareTeams(): Promise<CareTeam[]> {
 
 // — Admin Assignments —————————————————————————————
 
+import type { AssignableUsersResponse } from "@/lib/types";
+
 export interface CreateAssignmentData {
   patient_id: string;
   doctor_id: string;
+}
+
+export interface UpdateAssignmentData {
+  doctor_id: string;
+}
+
+export async function getAssignableUsers(): Promise<AssignableUsersResponse> {
+  return request<AssignableUsersResponse>("/api/admin/assignable");
 }
 
 export async function createAssignment(
@@ -566,6 +576,16 @@ export async function createAssignment(
 ): Promise<AdminAssignment> {
   return request<AdminAssignment>("/api/admin/assignments", {
     method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateAssignment(
+  assignmentId: string,
+  data: UpdateAssignmentData,
+): Promise<AdminAssignment> {
+  return request<AdminAssignment>(`/api/admin/assignments/${assignmentId}`, {
+    method: "PATCH",
     body: JSON.stringify(data),
   });
 }

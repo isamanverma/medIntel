@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   Plus,
   CheckCircle2,
@@ -19,6 +19,8 @@ import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Calendar as CalendarWidget } from "@/components/ui/calendar";
+import { usePagination } from "@/hooks/use-pagination";
+import { Pagination } from "@/components/ui/Pagination";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -559,6 +561,14 @@ export function AppointmentsView({
     setCalendarDate(undefined);
   }
 
+  const pagination = usePagination(filteredAll, { pageSize: 10 });
+
+  // Reset to page 1 whenever the filter or calendar selection changes
+  useEffect(() => {
+    pagination.reset();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statusFilter, calendarDate]);
+
   // Adherence rate
   const completedCount = useMemo(
     () => history.filter((a) => a.status === "COMPLETED").length,
@@ -761,18 +771,31 @@ export function AppointmentsView({
               onBook={onBookAppointment}
             />
           ) : (
-            <div className="pt-1">
-              {filteredAll.map((appt, i) => (
-                <AppointmentTimelineCard
-                  key={appt.id}
-                  appt={appt}
-                  isLast={i === filteredAll.length - 1}
-                  doctorName={
-                    doctorNameMap.get(appt.doctor_id) ?? "Unknown Doctor"
-                  }
-                />
-              ))}
-            </div>
+            <>
+              <div className="pt-1">
+                {pagination.pageItems.map((appt, i) => (
+                  <AppointmentTimelineCard
+                    key={appt.id}
+                    appt={appt}
+                    isLast={i === pagination.pageItems.length - 1}
+                    doctorName={
+                      doctorNameMap.get(appt.doctor_id) ?? "Unknown Doctor"
+                    }
+                  />
+                ))}
+              </div>
+              <Pagination
+                page={pagination.page}
+                totalPages={pagination.totalPages}
+                totalItems={pagination.totalItems}
+                pageSize={pagination.pageSize}
+                hasNext={pagination.hasNext}
+                hasPrev={pagination.hasPrev}
+                onNext={pagination.next}
+                onPrev={pagination.prev}
+                onGoTo={pagination.goTo}
+              />
+            </>
           )}
         </div>
       </div>
