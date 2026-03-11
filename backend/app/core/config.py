@@ -37,7 +37,7 @@ class Settings:
     JWT_SECRET_KEY: str = os.getenv("JWT_SECRET_KEY", _JWT_SECRET_DEFAULT)
     JWT_ALGORITHM: str = os.getenv("JWT_ALGORITHM", "HS256")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(
-        os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30")
+        os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "1440")
     )
 
     # ── Frontend origin (CORS & cookie domain) ────────────────────

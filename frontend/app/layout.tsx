@@ -1,8 +1,13 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, DM_Sans } from "next/font/google";
 import SessionProvider from "@/components/providers/SessionProvider";
+import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import { ToastProvider } from "@/components/ui/Toast";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
+import { cn } from "@/lib/utils";
+
+const dmSans = DM_Sans({ subsets: ["latin"], variable: "--font-sans" });
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -34,13 +39,24 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        <SessionProvider>
-          <ToastProvider>{children}</ToastProvider>
-        </SessionProvider>
+    <html
+      lang="en"
+      suppressHydrationWarning
+      className={cn(dmSans.variable, geistSans.variable, geistMono.variable)}
+    >
+      <body className="antialiased font-sans">
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="dark"
+          enableSystem
+          disableTransitionOnChange
+        >
+          <SessionProvider>
+            <TooltipProvider>
+              <ToastProvider>{children}</ToastProvider>
+            </TooltipProvider>
+          </SessionProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

@@ -182,6 +182,11 @@ async def create_patient_profile(
         **body.model_dump(),
     )
     session.add(profile)
+
+    # Keep users.name in sync so the JWT / session reflects the real name
+    user.name = f"{body.first_name} {body.last_name}"
+    session.add(user)
+
     await session.commit()
     await session.refresh(profile)
     return PatientProfileResponse.model_validate(profile)
@@ -281,6 +286,14 @@ async def update_patient_profile(
         setattr(profile, field, value)
 
     session.add(profile)
+
+    # Keep users.name in sync whenever first or last name changes
+    if "first_name" in update_data or "last_name" in update_data:
+        new_first = update_data.get("first_name", profile.first_name)
+        new_last = update_data.get("last_name", profile.last_name)
+        user.name = f"{new_first} {new_last}"
+        session.add(user)
+
     await session.commit()
     await session.refresh(profile)
     return PatientProfileResponse.model_validate(profile)
@@ -318,6 +331,11 @@ async def create_doctor_profile(
         license_number=body.license_number,
     )
     session.add(profile)
+
+    # Keep users.name in sync so the JWT / session reflects the real name
+    user.name = f"{body.first_name} {body.last_name}"
+    session.add(user)
+
     await session.commit()
     await session.refresh(profile)
     return DoctorProfileResponse.model_validate(profile)
@@ -363,6 +381,14 @@ async def update_doctor_profile(
         setattr(profile, field, value)
 
     session.add(profile)
+
+    # Keep users.name in sync whenever first or last name changes
+    if "first_name" in update_data or "last_name" in update_data:
+        new_first = update_data.get("first_name", profile.first_name)
+        new_last = update_data.get("last_name", profile.last_name)
+        user.name = f"{new_first} {new_last}"
+        session.add(user)
+
     await session.commit()
     await session.refresh(profile)
     return DoctorProfileResponse.model_validate(profile)

@@ -99,15 +99,15 @@ function LoginForm() {
     doctor: {
       icon: Stethoscope,
       label: "Doctor",
-      color: "text-secondary",
-      bg: "bg-secondary/10",
+      color: "text-chart-2",
+      bg: "bg-chart-2/10",
       description: "Manage patients & clinical workflows",
     },
     admin: {
       icon: Shield,
       label: "Admin",
-      color: "text-accent",
-      bg: "bg-accent/10",
+      color: "text-chart-4",
+      bg: "bg-chart-4/10",
       description: "System administration & user management",
     },
   };
@@ -121,7 +121,7 @@ function LoginForm() {
         {/* Logo */}
         <div className="mb-8 text-center">
           <Link href="/" className="inline-flex items-center gap-2">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-white">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground">
               <Activity className="h-5 w-5" />
             </div>
             <span className="text-2xl font-bold tracking-tight text-foreground">
@@ -154,10 +154,11 @@ function LoginForm() {
                     setRole(r);
                     setError("");
                   }}
-                  className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-2.5 text-sm font-medium transition-all ${role === r
-                    ? "bg-card shadow-sm " + config.color
-                    : "text-muted-foreground hover:text-foreground"
-                    }`}
+                  className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-2.5 text-sm font-medium transition-all ${
+                    role === r
+                      ? "bg-card shadow-sm " + config.color
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
                 >
                   <Icon className="h-4 w-4" />
                   <span className="hidden sm:inline">{config.label}</span>
@@ -240,7 +241,7 @@ function LoginForm() {
             <button
               type="submit"
               disabled={isLoading}
-              className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-primary-dark disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
             >
               {isLoading ? (
                 <>
@@ -258,7 +259,7 @@ function LoginForm() {
             Don&apos;t have an account?{" "}
             <Link
               href={`/signup?role=${role}`}
-              className="font-semibold text-primary hover:text-primary-dark transition-colors"
+              className="font-semibold text-primary hover:opacity-80 transition-opacity"
             >
               Create one
             </Link>

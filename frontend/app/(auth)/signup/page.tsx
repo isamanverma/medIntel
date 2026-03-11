@@ -126,15 +126,15 @@ function SignupForm() {
     doctor: {
       icon: Stethoscope,
       label: "Doctor",
-      color: "text-secondary",
-      bg: "bg-secondary/10",
+      color: "text-chart-2",
+      bg: "bg-chart-2/10",
       description: "Manage patients, clinical workflows & diagnostics",
     },
     admin: {
       icon: Shield,
       label: "Admin",
-      color: "text-accent",
-      bg: "bg-accent/10",
+      color: "text-chart-4",
+      bg: "bg-chart-4/10",
       description: "System administration & platform management",
     },
   };
@@ -148,7 +148,7 @@ function SignupForm() {
         {/* Logo */}
         <div className="mb-8 text-center">
           <Link href="/" className="inline-flex items-center gap-2">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-white">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground">
               <Activity className="h-5 w-5" />
             </div>
             <span className="text-2xl font-bold tracking-tight text-foreground">
@@ -321,14 +321,14 @@ function SignupForm() {
               <div className="space-y-1.5 rounded-lg border border-border bg-muted/50 px-3 py-2.5">
                 <div className="flex items-center gap-2 text-xs">
                   {passwordChecks.length ? (
-                    <CheckCircle2 className="h-3.5 w-3.5 text-secondary flex-shrink-0" />
+                    <CheckCircle2 className="h-3.5 w-3.5 text-chart-2 flex-shrink-0" />
                   ) : (
                     <AlertCircle className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
                   )}
                   <span
                     className={
                       passwordChecks.length
-                        ? "text-secondary"
+                        ? "text-chart-2"
                         : "text-muted-foreground"
                     }
                   >
@@ -338,14 +338,14 @@ function SignupForm() {
                 {confirmPassword.length > 0 && (
                   <div className="flex items-center gap-2 text-xs">
                     {passwordChecks.match ? (
-                      <CheckCircle2 className="h-3.5 w-3.5 text-secondary flex-shrink-0" />
+                      <CheckCircle2 className="h-3.5 w-3.5 text-chart-2 flex-shrink-0" />
                     ) : (
                       <AlertCircle className="h-3.5 w-3.5 text-destructive flex-shrink-0" />
                     )}
                     <span
                       className={
                         passwordChecks.match
-                          ? "text-secondary"
+                          ? "text-chart-2"
                           : "text-destructive"
                       }
                     >
@@ -359,7 +359,7 @@ function SignupForm() {
             <button
               type="submit"
               disabled={isLoading}
-              className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-primary-dark disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
             >
               {isLoading ? (
                 <>
@@ -377,7 +377,7 @@ function SignupForm() {
             Already have an account?{" "}
             <Link
               href={`/login?role=${role}`}
-              className="font-semibold text-primary hover:text-primary-dark transition-colors"
+              className="font-semibold text-primary hover:opacity-80 transition-opacity"
             >
               Sign in
             </Link>
