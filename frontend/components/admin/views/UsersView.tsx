@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Power, PowerOff, Trash2, ChevronDown } from "lucide-react";
+import { Power, PowerOff, Trash2, ChevronDown, Search, X } from "lucide-react";
 import { usePagination } from "@/hooks/use-pagination";
 import { Pagination } from "@/components/ui/Pagination";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -58,8 +59,41 @@ export function UsersView({
   onDeleteUser,
 }: UsersViewProps) {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [roleFilter, setRoleFilter] = useState<
+    "ALL" | "PATIENT" | "DOCTOR" | "ADMIN"
+  >("ALL");
 
-  const pagination = usePagination(users, { pageSize: 15 });
+  const filtered = useMemo(() => {
+    let list = users;
+    if (roleFilter !== "ALL") list = list.filter((u) => u.role === roleFilter);
+    const term = searchQuery.trim().toLowerCase();
+    if (term) {
+      list = list.filter(
+        (u) =>
+          u.name.toLowerCase().includes(term) ||
+          u.email.toLowerCase().includes(term),
+      );
+    }
+    return list;
+  }, [users, searchQuery, roleFilter]);
+
+  const roleCounts = useMemo(
+    () => ({
+      ALL: users.length,
+      PATIENT: users.filter((u) => u.role === "PATIENT").length,
+      DOCTOR: users.filter((u) => u.role === "DOCTOR").length,
+      ADMIN: users.filter((u) => u.role === "ADMIN").length,
+    }),
+    [users],
+  );
+
+  const pagination = usePagination(filtered, { pageSize: 15 });
+
+  const clearFilters = () => {
+    setSearchQuery("");
+    setRoleFilter("ALL");
+  };
 
   const handleDeleteClick = (userId: string) => {
     if (confirmDeleteId === userId) {
@@ -73,17 +107,77 @@ export function UsersView({
   };
 
   const pageUsers = pagination.pageItems;
+  const isFiltered = searchQuery.trim() !== "" || roleFilter !== "ALL";
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Page heading */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-foreground">Users</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {users.length} registered account{users.length !== 1 ? "s" : ""}
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            {isFiltered
+              ? `${filtered.length} of ${users.length} account${users.length !== 1 ? "s" : ""}`
+              : `${users.length} registered account${users.length !== 1 ? "s" : ""}`}
           </p>
         </div>
+        {isFiltered && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={clearFilters}
+            className="gap-1.5 text-muted-foreground"
+          >
+            <X className="size-3.5" />
+            Clear filters
+          </Button>
+        )}
+      </div>
+
+      {/* Role filter pills */}
+      <div className="flex flex-wrap gap-2">
+        {(["ALL", "PATIENT", "DOCTOR", "ADMIN"] as const).map((r) => (
+          <button
+            key={r}
+            type="button"
+            onClick={() => setRoleFilter(r)}
+            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium border transition-colors
+              ${
+                roleFilter === r
+                  ? r === "ALL"
+                    ? "bg-foreground text-background border-foreground"
+                    : r === "PATIENT"
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : r === "DOCTOR"
+                        ? "bg-secondary text-secondary-foreground border-secondary"
+                        : "bg-accent text-accent-foreground border-accent"
+                  : "bg-muted/50 text-muted-foreground border-border hover:bg-muted"
+              }`}
+          >
+            {r === "ALL" ? "All" : roleMeta[r].label}
+            <span className="tabular-nums">{roleCounts[r]}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Search bar */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
+        <Input
+          className="pl-9 pr-9 h-9 text-sm"
+          placeholder="Search by name or email…"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
+        {searchQuery && (
+          <button
+            type="button"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            onClick={() => setSearchQuery("")}
+          >
+            <X className="size-3.5" />
+          </button>
+        )}
       </div>
 
       {/* Table */}
@@ -107,9 +201,26 @@ export function UsersView({
           </span>
         </div>
 
-        {users.length === 0 ? (
-          <div className="px-5 py-12 text-center text-sm text-muted-foreground">
-            No users found.
+        {pageUsers.length === 0 ? (
+          <div className="flex flex-col items-center gap-3 px-5 py-14 text-center">
+            <div className="flex size-10 items-center justify-center rounded-full bg-muted">
+              <Search className="size-4 text-muted-foreground" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-foreground">
+                {isFiltered ? "No users match your filters" : "No users found"}
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {isFiltered
+                  ? "Try a different name, email, or role."
+                  : "No accounts have been registered yet."}
+              </p>
+            </div>
+            {isFiltered && (
+              <Button size="sm" variant="outline" onClick={clearFilters}>
+                Clear filters
+              </Button>
+            )}
           </div>
         ) : (
           <div className="divide-y divide-border">
@@ -254,18 +365,19 @@ export function UsersView({
         )}
       </div>
 
-      <Pagination
-        className="px-5 pb-4"
-        page={pagination.page}
-        totalPages={pagination.totalPages}
-        totalItems={pagination.totalItems}
-        pageSize={pagination.pageSize}
-        hasNext={pagination.hasNext}
-        hasPrev={pagination.hasPrev}
-        onNext={pagination.next}
-        onPrev={pagination.prev}
-        onGoTo={pagination.goTo}
-      />
+      {pagination.totalPages > 1 && (
+        <Pagination
+          page={pagination.page}
+          totalPages={pagination.totalPages}
+          totalItems={pagination.totalItems}
+          pageSize={pagination.pageSize}
+          hasNext={pagination.hasNext}
+          hasPrev={pagination.hasPrev}
+          onNext={pagination.next}
+          onPrev={pagination.prev}
+          onGoTo={pagination.goTo}
+        />
+      )}
     </div>
   );
 }
