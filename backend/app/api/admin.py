@@ -6,10 +6,14 @@ Provides system-wide statistics for the admin dashboard.
 
 from __future__ import annotations
 
+import uuid
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from app.db.engine import get_session
 from app.deps import require_admin
@@ -118,24 +122,134 @@ async def get_admin_users(
     ]
 
 
-# ── Admin Assignments ─────────────────────────────────────────────
+# ── Assignable Users (for dropdowns) ─────────────────────────────
 
-import uuid
-from datetime import datetime
+class AssignablePatient(BaseModel):
+    user_id: str
+    profile_id: str
+    name: str
+    email: str
+
+
+class AssignableDoctor(BaseModel):
+    user_id: str
+    profile_id: str
+    name: str
+    email: str
+    specialization: str
+
+
+class AssignableUsersResponse(BaseModel):
+    patients: list[AssignablePatient]
+    doctors: list[AssignableDoctor]
+
+
+@router.get("/assignable", response_model=AssignableUsersResponse)
+async def get_assignable_users(
+    session: AsyncSession = Depends(get_session),
+    _admin: User = Depends(require_admin),
+) -> AssignableUsersResponse:
+    """Return all patients and doctors with their profile IDs for assignment dropdowns."""
+
+    # Patients: join PatientProfile → User
+    patient_result = await session.execute(
+        select(PatientProfile, User)
+        .join(User, PatientProfile.user_id == User.id)
+        .where(User.is_active == True)
+        .order_by(PatientProfile.first_name, PatientProfile.last_name)
+    )
+    patients = [
+        AssignablePatient(
+            user_id=str(user.id),
+            profile_id=str(profile.id),
+            name=f"{profile.first_name} {profile.last_name}",
+            email=user.email,
+        )
+        for profile, user in patient_result.all()
+    ]
+
+    # Doctors: join DoctorProfile → User
+    doctor_result = await session.execute(
+        select(DoctorProfile, User)
+        .join(User, DoctorProfile.user_id == User.id)
+        .where(User.is_active == True)
+        .order_by(DoctorProfile.first_name, DoctorProfile.last_name)
+    )
+    doctors = [
+        AssignableDoctor(
+            user_id=str(user.id),
+            profile_id=str(profile.id),
+            name=f"{profile.first_name} {profile.last_name}",
+            email=user.email,
+            specialization=profile.specialization,
+        )
+        for profile, user in doctor_result.all()
+    ]
+
+    return AssignableUsersResponse(patients=patients, doctors=doctors)
+
+
+# ── Admin Assignments ─────────────────────────────────────────────
 
 class AssignmentCreate(BaseModel):
     patient_id: uuid.UUID
     doctor_id: uuid.UUID
 
 
-class AssignmentResponse(BaseModel):
-    id: uuid.UUID
-    patient_id: uuid.UUID
+class AssignmentUpdate(BaseModel):
     doctor_id: uuid.UUID
+
+
+class AssignmentResponse(BaseModel):
+    id: str
+    patient_id: str
+    patient_user_id: str
+    patient_name: str
+    patient_email: str
+    doctor_id: str
+    doctor_user_id: str
+    doctor_name: str
+    doctor_email: str
+    doctor_specialization: str
     status: str
     created_at: str
 
     model_config = {"from_attributes": True}
+
+
+async def _build_assignment_response(
+    mapping: PatientDoctorMapping,
+    session: AsyncSession,
+) -> AssignmentResponse:
+    """Resolve profile + user details for a single mapping and return an enriched response."""
+    patient_profile = await session.get(PatientProfile, mapping.patient_id)
+    doctor_profile = await session.get(DoctorProfile, mapping.doctor_id)
+
+    patient_user = await session.get(User, patient_profile.user_id) if patient_profile else None
+    doctor_user = await session.get(User, doctor_profile.user_id) if doctor_profile else None
+
+    return AssignmentResponse(
+        id=str(mapping.id),
+        patient_id=str(mapping.patient_id),
+        patient_user_id=str(patient_profile.user_id) if patient_profile else "",
+        patient_name=(
+            f"{patient_profile.first_name} {patient_profile.last_name}"
+            if patient_profile
+            else "Unknown Patient"
+        ),
+        patient_email=patient_user.email if patient_user else "—",
+        doctor_id=str(mapping.doctor_id),
+        doctor_user_id=str(doctor_profile.user_id) if doctor_profile else "",
+        doctor_name=(
+            f"{doctor_profile.first_name} {doctor_profile.last_name}"
+            if doctor_profile
+            else "Unknown Doctor"
+        ),
+        doctor_email=doctor_user.email if doctor_user else "—",
+        doctor_specialization=doctor_profile.specialization if doctor_profile else "—",
+        status=str(mapping.status.value) if hasattr(mapping.status, "value") else str(mapping.status),
+        created_at=str(mapping.created_at),
+    )
 
 
 @router.post("/assignments", response_model=AssignmentResponse, status_code=status.HTTP_201_CREATED)
@@ -172,13 +286,7 @@ async def create_assignment(
     session.add(mapping)
     await session.commit()
     await session.refresh(mapping)
-    return AssignmentResponse(
-        id=mapping.id,
-        patient_id=mapping.patient_id,
-        doctor_id=mapping.doctor_id,
-        status=mapping.status,
-        created_at=str(mapping.created_at),
-    )
+    return await _build_assignment_response(mapping, session)
 
 
 @router.get("/assignments", response_model=list[AssignmentResponse])
@@ -186,20 +294,92 @@ async def get_assignments(
     session: AsyncSession = Depends(get_session),
     _admin: User = Depends(require_admin),
 ) -> list[AssignmentResponse]:
-    """List all patient-doctor assignments."""
-    result = await session.execute(
-        select(PatientDoctorMapping).order_by(PatientDoctorMapping.created_at.desc())
+    """List all patient-doctor assignments, enriched with names and emails."""
+    # Single query: join mappings → patient profile → patient user
+    #                            → doctor profile  → doctor user
+    PatientUser = aliased(User, name="patient_user")
+    DoctorUser = aliased(User, name="doctor_user")
+
+    stmt = (
+        select(
+            PatientDoctorMapping,
+            PatientProfile,
+            PatientUser,
+            DoctorProfile,
+            DoctorUser,
+        )
+        .join(PatientProfile, PatientDoctorMapping.patient_id == PatientProfile.id)
+        .join(PatientUser, PatientProfile.user_id == PatientUser.id)
+        .join(DoctorProfile, PatientDoctorMapping.doctor_id == DoctorProfile.id)
+        .join(DoctorUser, DoctorProfile.user_id == DoctorUser.id)
+        .order_by(PatientDoctorMapping.created_at.desc())
     )
+
+    result = await session.execute(stmt)
+    rows = result.all()
+
     return [
         AssignmentResponse(
-            id=m.id,
-            patient_id=m.patient_id,
-            doctor_id=m.doctor_id,
-            status=m.status,
-            created_at=str(m.created_at),
+            id=str(mapping.id),
+            patient_id=str(mapping.patient_id),
+            patient_user_id=str(patient_profile.user_id),
+            patient_name=f"{patient_profile.first_name} {patient_profile.last_name}",
+            patient_email=patient_user.email,
+            doctor_id=str(mapping.doctor_id),
+            doctor_user_id=str(doctor_profile.user_id),
+            doctor_name=f"{doctor_profile.first_name} {doctor_profile.last_name}",
+            doctor_email=doctor_user.email,
+            doctor_specialization=doctor_profile.specialization,
+            status=str(mapping.status.value) if hasattr(mapping.status, "value") else str(mapping.status),
+            created_at=str(mapping.created_at),
         )
-        for m in result.scalars().all()
+        for mapping, patient_profile, patient_user, doctor_profile, doctor_user in rows
     ]
+
+
+@router.patch("/assignments/{assignment_id}", response_model=AssignmentResponse)
+async def update_assignment(
+    assignment_id: uuid.UUID,
+    body: AssignmentUpdate,
+    session: AsyncSession = Depends(get_session),
+    _admin: User = Depends(require_admin),
+) -> AssignmentResponse:
+    """Admin reassigns a patient to a different doctor."""
+    mapping = await session.get(PatientDoctorMapping, assignment_id)
+    if not mapping:
+        raise HTTPException(status_code=404, detail="Assignment not found")
+
+    if mapping.status != MappingStatus.ACTIVE:
+        raise HTTPException(status_code=400, detail="Cannot edit an inactive assignment")
+
+    # Validate new doctor profile exists
+    new_doctor = await session.get(DoctorProfile, body.doctor_id)
+    if not new_doctor:
+        raise HTTPException(status_code=404, detail="Doctor not found")
+
+    # Guard: no change
+    if mapping.doctor_id == body.doctor_id:
+        raise HTTPException(status_code=400, detail="Patient is already assigned to this doctor")
+
+    # Guard: patient already has an active mapping with the new doctor
+    conflict = await session.execute(
+        select(PatientDoctorMapping).where(
+            PatientDoctorMapping.patient_id == mapping.patient_id,
+            PatientDoctorMapping.doctor_id == body.doctor_id,
+            PatientDoctorMapping.status == MappingStatus.ACTIVE,
+        )
+    )
+    if conflict.scalar_one_or_none():
+        raise HTTPException(
+            status_code=409,
+            detail="Patient already has an active assignment with this doctor",
+        )
+
+    mapping.doctor_id = body.doctor_id
+    session.add(mapping)
+    await session.commit()
+    await session.refresh(mapping)
+    return await _build_assignment_response(mapping, session)
 
 
 @router.delete("/assignments/{assignment_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -208,7 +388,7 @@ async def delete_assignment(
     session: AsyncSession = Depends(get_session),
     _admin: User = Depends(require_admin),
 ) -> None:
-    """Admin removes a patient-doctor assignment."""
+    """Admin removes a patient-doctor assignment (soft delete → INACTIVE)."""
     mapping = await session.get(PatientDoctorMapping, assignment_id)
     if not mapping:
         raise HTTPException(status_code=404, detail="Assignment not found")
@@ -316,5 +496,3 @@ async def delete_user(
 
     await session.delete(user)
     await session.commit()
-
-

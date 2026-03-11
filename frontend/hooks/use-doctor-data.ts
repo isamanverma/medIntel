@@ -38,14 +38,23 @@ export function useDoctorData() {
 
   const fetchData = useCallback(async () => {
     try {
-      const [upcomingRes, patientsRes, sentRef, receivedRef, teamsRes] =
-        await Promise.allSettled([
-          getUpcomingAppointments(),
-          getMyPatients(),
-          getSentReferrals(),
-          getReceivedReferrals(),
-          getDoctorCareTeams(),
-        ]);
+      // All 6 requests fire in parallel — profile is no longer a sequential
+      // second round-trip after the others finish.
+      const [
+        upcomingRes,
+        patientsRes,
+        sentRef,
+        receivedRef,
+        teamsRes,
+        profileRes,
+      ] = await Promise.allSettled([
+        getUpcomingAppointments(),
+        getMyPatients(),
+        getSentReferrals(),
+        getReceivedReferrals(),
+        getDoctorCareTeams(),
+        getMyDoctorProfile(),
+      ]);
 
       if (upcomingRes.status === "fulfilled") setUpcoming(upcomingRes.value);
       if (patientsRes.status === "fulfilled") setPatients(patientsRes.value);
@@ -53,13 +62,8 @@ export function useDoctorData() {
       if (receivedRef.status === "fulfilled")
         setReceivedReferrals(receivedRef.value);
       if (teamsRes.status === "fulfilled") setCareTeams(teamsRes.value);
-
-      try {
-        const p = await getMyDoctorProfile();
-        setProfile(p);
-      } catch {
-        // No profile yet — not an error state
-      }
+      // Profile rejection is normal for new doctors — just leave it null
+      if (profileRes.status === "fulfilled") setProfile(profileRes.value);
     } finally {
       setLoading(false);
     }

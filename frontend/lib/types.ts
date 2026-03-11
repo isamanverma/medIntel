@@ -222,9 +222,36 @@ export interface CareTeam {
 export interface AdminAssignment {
   id: string;
   patient_id: string;
+  patient_user_id: string;
+  patient_name: string;
+  patient_email: string;
   doctor_id: string;
+  doctor_user_id: string;
+  doctor_name: string;
+  doctor_email: string;
+  doctor_specialization: string;
   status: string;
   created_at: string;
+}
+
+export interface AssignablePatient {
+  user_id: string;
+  profile_id: string;
+  name: string;
+  email: string;
+}
+
+export interface AssignableDoctor {
+  user_id: string;
+  profile_id: string;
+  name: string;
+  email: string;
+  specialization: string;
+}
+
+export interface AssignableUsersResponse {
+  patients: AssignablePatient[];
+  doctors: AssignableDoctor[];
 }
 
 export interface AdminUser {

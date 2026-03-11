@@ -26,22 +26,21 @@ export function usePatientData() {
 
   const fetchData = useCallback(async () => {
     try {
-      const [upcomingRes, historyRes, doctorsRes] = await Promise.allSettled([
-        getUpcomingAppointments(),
-        getAppointmentHistory(),
-        getMyDoctors(),
-      ]);
+      // All 4 requests fire in parallel — profile is no longer a sequential
+      // second round-trip after the others finish.
+      const [upcomingRes, historyRes, doctorsRes, profileRes] =
+        await Promise.allSettled([
+          getUpcomingAppointments(),
+          getAppointmentHistory(),
+          getMyDoctors(),
+          getMyPatientProfile(),
+        ]);
 
       if (upcomingRes.status === "fulfilled") setUpcoming(upcomingRes.value);
       if (historyRes.status === "fulfilled") setHistory(historyRes.value);
       if (doctorsRes.status === "fulfilled") setDoctors(doctorsRes.value);
-
-      try {
-        const p = await getMyPatientProfile();
-        setProfile(p);
-      } catch {
-        // Profile not yet created — not an error state
-      }
+      // Profile rejection is normal for new users — just leave it null
+      if (profileRes.status === "fulfilled") setProfile(profileRes.value);
     } finally {
       setLoading(false);
     }
