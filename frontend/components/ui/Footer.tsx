@@ -90,7 +90,7 @@ export default function Footer() {
             <ul className="space-y-2">
               <li>
                 <Link
-                  href="/login?role=admin"
+                  href="/admin/login"
                   className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary transition-colors"
                 >
                   <Shield className="h-3.5 w-3.5" />
@@ -108,7 +108,7 @@ export default function Footer() {
           </p>
           <div className="flex items-center gap-4">
             <Link
-              href="/login?role=admin"
+              href="/admin/login"
               className="text-xs text-muted-foreground hover:text-primary transition-colors"
             >
               Admin

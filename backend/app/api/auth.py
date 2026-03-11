@@ -28,6 +28,7 @@ from app.services.auth_service import (
     EmailAlreadyExistsError,
     InvalidCredentialsError,
 )
+from app.models.enums import UserRole
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 limiter = Limiter(
@@ -84,7 +85,17 @@ async def signup(
     The frontend BFF proxy is expected to extract the token and set
     it as an HttpOnly cookie before forwarding the UserPublic payload
     to the browser.
+
+    Note: ADMIN accounts cannot be created through self-registration.
+    Admins must be provisioned directly in the database or via a
+    privileged internal tool.
     """
+    if body.role == UserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin accounts cannot be created through self-registration.",
+        )
+
     try:
         result = await create_user(session, data=body)
     except EmailAlreadyExistsError as exc:
@@ -158,4 +169,3 @@ async def me(
       - `access_token` HttpOnly cookie (set by the Next.js BFF).
     """
     return UserPublic.model_validate(user)
-

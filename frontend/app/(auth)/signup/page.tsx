@@ -9,19 +9,27 @@ import {
   EyeOff,
   Stethoscope,
   HeartPulse,
-  Shield,
   Loader2,
   AlertCircle,
   CheckCircle2,
+  UserPlus,
 } from "lucide-react";
 import { useAuth } from "@/components/providers/SessionProvider";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
-type Role = "doctor" | "patient" | "admin";
+type Role = "doctor" | "patient";
 
 function SignupForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const roleParam = searchParams.get("role") as Role | null;
+  const rawRoleParam = searchParams.get("role");
+  const roleParam: Role | null =
+    rawRoleParam === "doctor" || rawRoleParam === "patient"
+      ? rawRoleParam
+      : null;
   const { refreshSession } = useAuth();
 
   const [role, setRole] = useState<Role>(roleParam || "patient");
@@ -35,7 +43,7 @@ function SignupForm() {
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    if (roleParam && ["doctor", "patient", "admin"].includes(roleParam)) {
+    if (roleParam) {
       setRole(roleParam);
     }
   }, [roleParam]);
@@ -46,8 +54,6 @@ function SignupForm() {
         return "/doctor/dashboard";
       case "patient":
         return "/patient/dashboard";
-      case "admin":
-        return "/admin/dashboard";
     }
   };
 
@@ -64,12 +70,10 @@ function SignupForm() {
       setError("Please enter your full name.");
       return;
     }
-
     if (!passwordChecks.length) {
       setError("Password must be at least 6 characters.");
       return;
     }
-
     if (!passwordChecks.match) {
       setError("Passwords do not match.");
       return;
@@ -78,8 +82,6 @@ function SignupForm() {
     setIsLoading(true);
 
     try {
-      // Call the Next.js BFF proxy — it forwards to FastAPI, sets the
-      // HttpOnly access_token cookie on success, and returns UserPublic.
       const res = await fetch("/api/auth/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -100,12 +102,7 @@ function SignupForm() {
         return;
       }
 
-      // The BFF route already set the HttpOnly cookie. Refresh the
-      // AuthProvider session so the React context picks up the new user
-      // immediately (no full page reload needed).
       await refreshSession();
-
-      // Navigate to the role-appropriate dashboard
       router.push(getDashboard(role));
       router.refresh();
     } catch {
@@ -120,22 +117,17 @@ function SignupForm() {
       icon: HeartPulse,
       label: "Patient",
       color: "text-primary",
-      bg: "bg-primary/10",
+      pillBg: "bg-primary/10",
+      pillIcon: "text-primary",
       description: "Track your health, access AI insights & manage records",
     },
     doctor: {
       icon: Stethoscope,
       label: "Doctor",
       color: "text-chart-2",
-      bg: "bg-chart-2/10",
+      pillBg: "bg-chart-2/10",
+      pillIcon: "text-chart-2",
       description: "Manage patients, clinical workflows & diagnostics",
-    },
-    admin: {
-      icon: Shield,
-      label: "Admin",
-      color: "text-chart-4",
-      bg: "bg-chart-4/10",
-      description: "System administration & platform management",
     },
   };
 
@@ -159,6 +151,7 @@ function SignupForm() {
 
         {/* Card */}
         <div className="rounded-2xl border border-border bg-card p-8 shadow-lg">
+          {/* Heading */}
           <div className="mb-6 text-center">
             <h1 className="text-2xl font-bold text-card-foreground">
               Create your account
@@ -170,9 +163,10 @@ function SignupForm() {
 
           {/* Role toggle */}
           <div className="mb-6 flex rounded-xl bg-muted p-1">
-            {(["patient", "doctor", "admin"] as Role[]).map((r) => {
+            {(["patient", "doctor"] as Role[]).map((r) => {
               const config = roleConfig[r];
               const Icon = config.icon;
+              const isActive = role === r;
               return (
                 <button
                   key={r}
@@ -182,98 +176,110 @@ function SignupForm() {
                     setError("");
                   }}
                   className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-2.5 text-sm font-medium transition-all ${
-                    role === r
-                      ? "bg-card shadow-sm " + config.color
+                    isActive
+                      ? `bg-card shadow-sm ${config.color}`
                       : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
                   <Icon className="h-4 w-4" />
-                  <span className="hidden sm:inline">{config.label}</span>
+                  <span>{config.label}</span>
                 </button>
               );
             })}
           </div>
 
-          {/* Active role badge */}
+          {/* Role description pill */}
           <div
-            className={`mb-6 flex items-center gap-2 rounded-lg ${currentRole.bg} px-3 py-2.5`}
+            className={`mb-6 flex items-center gap-2 rounded-lg ${currentRole.pillBg} px-3 py-2.5`}
           >
             <CurrentIcon
-              className={`h-4 w-4 flex-shrink-0 ${currentRole.color}`}
+              className={`h-4 w-4 shrink-0 ${currentRole.pillIcon}`}
             />
             <p className="text-xs text-muted-foreground">
               {currentRole.description}
             </p>
           </div>
 
-          {/* Error message */}
+          {/* Error */}
           {error && (
-            <div className="mb-4 flex items-center gap-2 rounded-lg bg-destructive/10 px-3 py-2.5 text-sm text-destructive">
-              <AlertCircle className="h-4 w-4 flex-shrink-0" />
-              {error}
-            </div>
+            <Alert
+              variant="destructive"
+              className="mb-4 border-destructive/30 bg-destructive/10 py-2.5"
+            >
+              <AlertCircle className="h-4 w-4 text-destructive" />
+              <AlertDescription className="text-sm text-destructive">
+                {error}
+              </AlertDescription>
+            </Alert>
           )}
 
-          {/* Signup form */}
+          {/* Form */}
           <form onSubmit={handleSignup} className="space-y-4">
-            <div>
-              <label
+            {/* Full name */}
+            <div className="space-y-1.5">
+              <Label
                 htmlFor="name"
-                className="mb-1.5 block text-sm font-medium text-card-foreground"
+                className="text-sm font-medium text-card-foreground"
               >
                 Full Name
-              </label>
-              <input
+              </Label>
+              <Input
                 id="name"
                 type="text"
                 required
+                autoComplete="name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder={
                   role === "doctor" ? "Dr. Jane Smith" : "Jane Smith"
                 }
-                className="w-full rounded-lg border border-border bg-background px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
+                className="h-10.5 rounded-lg border-border bg-background px-3.5 text-sm text-foreground placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-primary/20"
               />
             </div>
 
-            <div>
-              <label
+            {/* Email */}
+            <div className="space-y-1.5">
+              <Label
                 htmlFor="email"
-                className="mb-1.5 block text-sm font-medium text-card-foreground"
+                className="text-sm font-medium text-card-foreground"
               >
                 Email
-              </label>
-              <input
+              </Label>
+              <Input
                 id="email"
                 type="email"
                 required
+                autoComplete="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
-                className="w-full rounded-lg border border-border bg-background px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
+                className="h-10.5 rounded-lg border-border bg-background px-3.5 text-sm text-foreground placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-primary/20"
               />
             </div>
 
-            <div>
-              <label
+            {/* Password */}
+            <div className="space-y-1.5">
+              <Label
                 htmlFor="password"
-                className="mb-1.5 block text-sm font-medium text-card-foreground"
+                className="text-sm font-medium text-card-foreground"
               >
                 Password
-              </label>
+              </Label>
               <div className="relative">
-                <input
+                <Input
                   id="password"
                   type={showPassword ? "text" : "password"}
                   required
+                  autoComplete="new-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="At least 6 characters"
-                  className="w-full rounded-lg border border-border bg-background px-3.5 py-2.5 pr-10 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
+                  className="h-10.5 rounded-lg border-border bg-background px-3.5 pr-10 text-sm text-foreground placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-primary/20"
                 />
                 <button
                   type="button"
-                  onClick={() => setShowPassword(!showPassword)}
+                  onClick={() => setShowPassword((v) => !v)}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                 >
                   {showPassword ? (
@@ -285,26 +291,31 @@ function SignupForm() {
               </div>
             </div>
 
-            <div>
-              <label
+            {/* Confirm password */}
+            <div className="space-y-1.5">
+              <Label
                 htmlFor="confirmPassword"
-                className="mb-1.5 block text-sm font-medium text-card-foreground"
+                className="text-sm font-medium text-card-foreground"
               >
                 Confirm Password
-              </label>
+              </Label>
               <div className="relative">
-                <input
+                <Input
                   id="confirmPassword"
                   type={showConfirmPassword ? "text" : "password"}
                   required
+                  autoComplete="new-password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="Re-enter your password"
-                  className="w-full rounded-lg border border-border bg-background px-3.5 py-2.5 pr-10 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
+                  className="h-10.5 rounded-lg border-border bg-background px-3.5 pr-10 text-sm text-foreground placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-primary/20"
                 />
                 <button
                   type="button"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  onClick={() => setShowConfirmPassword((v) => !v)}
+                  aria-label={
+                    showConfirmPassword ? "Hide password" : "Show password"
+                  }
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                 >
                   {showConfirmPassword ? (
@@ -321,9 +332,9 @@ function SignupForm() {
               <div className="space-y-1.5 rounded-lg border border-border bg-muted/50 px-3 py-2.5">
                 <div className="flex items-center gap-2 text-xs">
                   {passwordChecks.length ? (
-                    <CheckCircle2 className="h-3.5 w-3.5 text-chart-2 flex-shrink-0" />
+                    <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-chart-2" />
                   ) : (
-                    <AlertCircle className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                    <AlertCircle className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                   )}
                   <span
                     className={
@@ -338,9 +349,9 @@ function SignupForm() {
                 {confirmPassword.length > 0 && (
                   <div className="flex items-center gap-2 text-xs">
                     {passwordChecks.match ? (
-                      <CheckCircle2 className="h-3.5 w-3.5 text-chart-2 flex-shrink-0" />
+                      <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-chart-2" />
                     ) : (
-                      <AlertCircle className="h-3.5 w-3.5 text-destructive flex-shrink-0" />
+                      <AlertCircle className="h-3.5 w-3.5 shrink-0 text-destructive" />
                     )}
                     <span
                       className={
@@ -356,10 +367,11 @@ function SignupForm() {
               </div>
             )}
 
-            <button
+            {/* Submit */}
+            <Button
               type="submit"
               disabled={isLoading}
-              className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              className="h-10 w-full rounded-lg bg-primary text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
             >
               {isLoading ? (
                 <>
@@ -367,9 +379,12 @@ function SignupForm() {
                   Creating account...
                 </>
               ) : (
-                `Create ${currentRole.label} Account`
+                <>
+                  <UserPlus className="h-4 w-4" />
+                  Create {currentRole.label} Account
+                </>
               )}
-            </button>
+            </Button>
           </form>
 
           {/* Login link */}

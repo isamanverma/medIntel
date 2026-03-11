@@ -68,6 +68,18 @@ class TestSignup:
         })
         assert resp.status_code == 422
 
+    async def test_signup_admin_blocked(self, client: AsyncClient):
+        """Admin accounts cannot be self-registered — must return 403."""
+        resp = await client.post("/api/auth/signup", json={
+            "email": f"adminattempt_{uuid.uuid4().hex[:8]}@test.com",
+            "password": "StrongPass123!",
+            "name": "Rogue Admin",
+            "role": "ADMIN",
+        })
+        assert resp.status_code == 403
+        data = resp.json()
+        assert "self-registration" in data["detail"].lower()
+
 
 # ──────────────────────────────────────────────────────────────────
 #  Login

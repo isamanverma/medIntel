@@ -274,10 +274,10 @@ export default function ArchitectureSection() {
 
                     {/* Text */}
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-card-foreground">
+                      <p className="truncate text-base font-semibold text-card-foreground">
                         {item.label}
                       </p>
-                      <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                      <p className="mt-0.5 truncate text-sm text-muted-foreground">
                         {item.sublabel}
                       </p>
                     </div>
@@ -340,7 +340,7 @@ export default function ArchitectureSection() {
 
                 <CardHeader>
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-sm uppercase tracking-widest text-muted-foreground">
+                    <CardTitle className="text-base font-semibold uppercase tracking-widest text-muted-foreground">
                       Technology Stack
                     </CardTitle>
                     {/* Legend */}
@@ -428,8 +428,10 @@ export default function ArchitectureSection() {
                       </svg>
                     </div>
                     <div>
-                      <CardTitle>API-first & extensible</CardTitle>
-                      <CardDescription className="mt-1">
+                      <CardTitle className="text-base font-semibold text-card-foreground">
+                        API-first & extensible
+                      </CardTitle>
+                      <CardDescription className="mt-1 text-sm leading-relaxed">
                         Every feature is exposed through a clean REST API —
                         composable, testable, and ready for integration with
                         existing healthcare infrastructure.
@@ -477,8 +479,10 @@ export default function ArchitectureSection() {
                       </svg>
                     </div>
                     <div>
-                      <CardTitle>Async-native performance</CardTitle>
-                      <CardDescription className="mt-1">
+                      <CardTitle className="text-base font-semibold text-card-foreground">
+                        Async-native performance
+                      </CardTitle>
+                      <CardDescription className="mt-1 text-sm leading-relaxed">
                         Built with async Python and non-blocking database access
                         via asyncpg — handles concurrent clinical workloads
                         without bottlenecks.

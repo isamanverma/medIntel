@@ -58,7 +58,7 @@ export function AdminDashboardShell() {
   // ── Auth guard ─────────────────────────────────────────────────────────────
   useEffect(() => {
     if (status === "unauthenticated") {
-      router.push("/login?role=admin");
+      router.push("/admin/login");
     }
     if (status === "authenticated" && session?.user?.role !== "ADMIN") {
       router.push(`/${session?.user?.role.toLowerCase()}/dashboard`);

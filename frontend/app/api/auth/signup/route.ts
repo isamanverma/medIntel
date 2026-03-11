@@ -39,7 +39,7 @@ interface SignupBody {
 
 // ─── Helpers ─────────────────────────────────────────────────────
 
-const VALID_ROLES: UserRole[] = ["PATIENT", "DOCTOR", "ADMIN"];
+const VALID_ROLES: UserRole[] = ["PATIENT", "DOCTOR"];
 
 function normalizeRole(raw: string): UserRole | null {
   const upper = raw.toUpperCase() as UserRole;
@@ -81,8 +81,17 @@ export async function POST(request: NextRequest) {
 
   const role = normalizeRole(rawRole);
   if (!role) {
+    // Explicitly block ADMIN self-registration with a clear error
+    if (rawRole.toUpperCase() === "ADMIN") {
+      return NextResponse.json(
+        {
+          error: "Admin accounts cannot be created through self-registration.",
+        },
+        { status: 403 },
+      );
+    }
     return NextResponse.json(
-      { error: "Invalid role. Must be PATIENT, DOCTOR, or ADMIN." },
+      { error: "Invalid role. Must be PATIENT or DOCTOR." },
       { status: 400 },
     );
   }

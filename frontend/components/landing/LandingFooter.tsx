@@ -33,7 +33,7 @@ const footerLinks = [
   },
   {
     heading: "Administration",
-    links: [{ label: "Admin Dashboard", href: "/login?role=admin" }],
+    links: [{ label: "Admin Portal", href: "/admin/login" }],
   },
 ];
 
@@ -177,7 +177,7 @@ export default function LandingFooter() {
 
             {/* Admin link */}
             <Link
-              href="/login?role=admin"
+              href="/admin/login"
               className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-primary"
             >
               <svg
