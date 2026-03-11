@@ -25,6 +25,11 @@
  *     3. Actual data access is always gated by FastAPI which DOES verify
  *        the signature.
  *   The middleware is a UX convenience (redirects), not a security gate.
+ *
+ * Admin login is completely separated from the patient/doctor login:
+ *   - /admin/login  → standalone admin-only portal
+ *   - /login        → patient + doctor only (no admin tab)
+ *   - /signup       → patient + doctor only (admin self-registration blocked)
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -85,6 +90,22 @@ function roleToDashboard(role: string): string {
   }
 }
 
+/**
+ * Map a role string to its login path.
+ * Admins have their own isolated login page.
+ */
+function roleToLogin(role: string): string {
+  switch (role.toUpperCase()) {
+    case "ADMIN":
+      return "/admin/login";
+    case "DOCTOR":
+      return "/login?role=doctor";
+    case "PATIENT":
+    default:
+      return "/login?role=patient";
+  }
+}
+
 // ─── Protected routes configuration ─────────────────────────────
 
 const PROTECTED_ROUTES = [
@@ -92,6 +113,11 @@ const PROTECTED_ROUTES = [
   { path: "/patient/dashboard", role: "PATIENT" },
   { path: "/admin/dashboard", role: "ADMIN" },
 ];
+
+// ─── Auth pages (redirect away when already logged in) ───────────
+
+/** Pages that a logged-in user should never see. */
+const AUTH_PAGES = ["/login", "/signup", "/admin/login"];
 
 // ─── Proxy ───────────────────────────────────────────────────────
 
@@ -119,11 +145,18 @@ export default function proxy(request: NextRequest) {
   );
 
   if (matchedRoute) {
-    // Not logged in → redirect to login with role hint + callback URL
     if (!isLoggedIn) {
-      const roleHint = matchedRoute.role.toLowerCase();
-      const loginUrl = new URL(`/login?role=${roleHint}`, request.url);
-      loginUrl.searchParams.set("callbackUrl", pathname);
+      // Not logged in → redirect to the role-appropriate login page,
+      // preserving the intended destination as a callbackUrl.
+      const loginPath = roleToLogin(matchedRoute.role);
+      const loginUrl = new URL(loginPath, request.url);
+
+      // Only set callbackUrl on non-admin routes to keep the admin
+      // login page simple (it always goes to /admin/dashboard).
+      if (matchedRoute.role !== "ADMIN") {
+        loginUrl.searchParams.set("callbackUrl", pathname);
+      }
+
       return NextResponse.redirect(loginUrl);
     }
 
@@ -134,12 +167,29 @@ export default function proxy(request: NextRequest) {
     }
   }
 
-  // ── Auth pages (login / signup) — redirect if already logged in ─
-  if (isLoggedIn && (pathname === "/login" || pathname === "/signup")) {
+  // ── Auth pages — redirect away if already logged in ───────────
+  const isAuthPage = AUTH_PAGES.some((p) => pathname === p);
+
+  if (isLoggedIn && isAuthPage) {
     if (userRole) {
+      // An admin who somehow lands on /login or /signup should be sent
+      // to their dashboard, not the patient/doctor login.
       const dashboard = new URL(roleToDashboard(userRole), request.url);
       return NextResponse.redirect(dashboard);
     }
+  }
+
+  // ── Extra guard: non-admins trying to access /admin/login ──────
+  // If a patient or doctor is already logged in and visits /admin/login,
+  // redirect them to their own dashboard instead.
+  if (
+    pathname === "/admin/login" &&
+    isLoggedIn &&
+    userRole &&
+    userRole !== "ADMIN"
+  ) {
+    const dashboard = new URL(roleToDashboard(userRole), request.url);
+    return NextResponse.redirect(dashboard);
   }
 
   return NextResponse.next();
@@ -152,6 +202,7 @@ export const config = {
     "/doctor/dashboard/:path*",
     "/patient/dashboard/:path*",
     "/admin/dashboard/:path*",
+    "/admin/login",
     "/login",
     "/signup",
   ],
