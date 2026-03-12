@@ -137,30 +137,34 @@ export function useCometChatSession(): CometChatSessionState {
         if (!initOk) throw new Error("CometChat SDK failed to initialise.");
         if (!activeRef.current) return;
 
-        // ── 2. Check if already logged in (reuse existing session) ────────
+        // ── 2. Get backend token (source of truth for UID + auth token) ───
+        const tokenResp: VideoTokenResponse = await getVideoToken();
+        if (!activeRef.current) return;
+
+        // ── 3. Check if already logged in and matches expected UID ─────────
         const CometChat = await getCometChat();
         const existingUser = await CometChat.getLoggedinUser();
         if (activeRef.current && existingUser) {
-          // Already logged in — fetch a fresh token for the Calls SDK
-          const tokenResp: VideoTokenResponse = await getVideoToken();
-          if (!activeRef.current) return;
-          setCometChatUid(tokenResp.cometchat_uid);
-          setAuthToken(tokenResp.auth_token);
-          setStatus("ready");
-          return;
-        }
+          if (existingUser.getUid() === tokenResp.cometchat_uid) {
+            // Already logged in as the same user
+            setCometChatUid(tokenResp.cometchat_uid);
+            setAuthToken(tokenResp.auth_token);
+            setStatus("ready");
+            return;
+          }
 
-        // ── 3. Get an auth token from the backend (provisions CC user) ─────
-        const tokenResp: VideoTokenResponse = await getVideoToken();
-        if (!activeRef.current) return;
+          // Logged in as a different CometChat user — reset and relogin
+          await CometChat.logout();
+          if (!activeRef.current) return;
+        }
 
         // ── 4. Login to CometChat with the backend-issued auth token ───────
         await CometChat.login(tokenResp.auth_token);
         if (!activeRef.current) return;
 
-        setCometChatUid(tokenResp.cometchat_uid);
-        setAuthToken(tokenResp.auth_token);
-        setStatus("ready");
+          setCometChatUid(tokenResp.cometchat_uid);
+          setAuthToken(tokenResp.auth_token);
+          setStatus("ready");
       } catch (err: unknown) {
         if (!activeRef.current) return;
         const msg =
