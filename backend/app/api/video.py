@@ -5,7 +5,7 @@ Endpoints:
   POST /api/video/token               — Provision user in CometChat + return auth token
   GET  /api/video/eligibility/{id}    — Check whether the call window is open for an appointment
 
-The call window is: scheduled_time − 5 min  →  scheduled_time + 60 min
+The call window is: the full calendar day (UTC) of the appointment.
 Only CONFIRMED appointments qualify.
 """
 

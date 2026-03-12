@@ -71,17 +71,15 @@ export function AppointmentCallGate({
   }, [appointmentId]);
 
   useEffect(() => {
-    if (!sessionReady) {
-      setEligibility(null);
-      setLoading(false);
-      return;
-    }
-
+    // Always run the eligibility check regardless of CometChat readiness.
+    // The eligibility API only needs the user's auth session (JWT), not CometChat.
+    // The VideoCallButton is disabled via the `disabled` prop when !sessionReady,
+    // so it is safe to show the button before the CometChat SDK is fully ready.
     checkEligibility();
     // Re-check every 60 s so the button appears/disappears as the window opens
     const timer = setInterval(checkEligibility, 60_000);
     return () => clearInterval(timer);
-  }, [checkEligibility, sessionReady]);
+  }, [checkEligibility]);
 
   // Nothing to show yet
   if (loading || !eligibility) return null;
