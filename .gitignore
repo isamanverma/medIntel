@@ -19,8 +19,7 @@ uploads/
 
 # production
 /build
-bun.lock
-uv.lock
+
 # misc
 .DS_Store
 *.pem
