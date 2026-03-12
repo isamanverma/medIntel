@@ -12,14 +12,15 @@
 
 # testing
 /coverage
-
+uploads/
 # next.js
 /.next/
 /out/
 
 # production
 /build
-
+bun.lock
+uv.lock
 # misc
 .DS_Store
 *.pem
@@ -40,6 +41,7 @@ yarn-error.log*
 __pycache__/
 *.pyc
 *.pyo
+backend/.pytest_cache/
 # typescript
 *.tsbuildinfo
 next-env.d.ts

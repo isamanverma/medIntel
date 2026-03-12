@@ -31,6 +31,8 @@ class Settings:
     # ── Database ──────────────────────────────────────────────────
     SUPABASE_URL: str = os.getenv("SUPABASE_URL", "")
     SUPABASE_KEY: str = os.getenv("SUPABASE_KEY", "")
+    SUPABASE_SERVICE_ROLE_KEY: str = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+    SUPABASE_STORAGE_BUCKET: str = os.getenv("SUPABASE_STORAGE_BUCKET", "medical-reports")
     DATABASE_URL: str = os.getenv("DATABASE_URL", "")
 
     # ── JWT Configuration ─────────────────────────────────────────
@@ -67,6 +69,13 @@ class Settings:
 
     # ── AI / LLM ─────────────────────────────────────────────────
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
+
+    # PageIndex API key (preferred for native PageIndex tree generation)
+    PAGEINDEX_API_KEY: str = os.getenv("PAGEINDEX_API_KEY", "")
+
+    # OpenRouter (used by PageIndex for document tree building)
+    OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY", "")
+    OPENROUTER_MODEL: str = os.getenv("OPENROUTER_MODEL", "openai/gpt-4o")
 
     def __init__(self) -> None:
         if not self.DATABASE_URL:

@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import {
   Activity,
   Calendar,
+  FileText,
   HeartPulse,
   MessageSquare,
   LayoutDashboard,
@@ -47,7 +48,8 @@ export type PatientView =
   | "appointments"
   | "doctors"
   | "profile"
-  | "chat";
+  | "chat"
+  | "reports";
 
 interface NavItem {
   id: PatientView;
@@ -82,6 +84,12 @@ const NAV_ITEMS: NavItem[] = [
     label: "Secure Chat",
     icon: MessageSquare,
     description: "Messages",
+  },
+  {
+    id: "reports",
+    label: "Reports",
+    icon: FileText,
+    description: "Medical documents & AI insights",
   },
 ];
 

@@ -168,13 +168,55 @@ export interface GenerateTagsResponse {
   description: string;
 }
 
+export type AIAnalysisStatus = "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED";
+
+export interface MedicalReportInsightMedication {
+  name: string;
+  dosage: string;
+  frequency: string;
+  purpose: string;
+}
+
+export interface MedicalReportInsightLabValue {
+  test: string;
+  value: string;
+  reference_range: string;
+  status: "normal" | "high" | "low" | "unknown";
+}
+
+export interface ReportInsights {
+  medications: MedicalReportInsightMedication[];
+  diagnoses: string[];
+  lab_values: MedicalReportInsightLabValue[];
+  key_findings: string[];
+  risk_flags: string[];
+}
+
 export interface MedicalReport {
   id: string;
   patient_id: string;
-  title: string;
+  uploader_id: string;
+  file_url: string;
+  file_name: string | null;
+  file_type: string | null;
   report_type: string;
-  file_url: string | null;
-  created_at: string;
+  uploaded_at: string;
+  ai_analysis_status: AIAnalysisStatus;
+  ai_summary: string | null;
+  ai_insights: ReportInsights | null;
+}
+
+export interface RAGChatSource {
+  doc_name: string;
+  page_range: string;
+}
+
+export interface RAGChatMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  sources?: RAGChatSource[];
+  timestamp: string;
 }
 
 export interface AdherenceStats {
