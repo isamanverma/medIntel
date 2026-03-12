@@ -31,6 +31,7 @@ from app.api.admin import router as admin_router
 from app.api.referrals import router as referrals_router
 from app.api.care_teams import router as care_teams_router
 from app.api.chat import router as chat_router
+from app.api.video import router as video_router
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -118,6 +119,7 @@ app.include_router(adherence_router, prefix="/api")
 app.include_router(admin_router)  # already has /api/admin prefix
 app.include_router(referrals_router, prefix="/api")
 app.include_router(care_teams_router, prefix="/api")
+app.include_router(video_router)  # has its own /api/video prefix
 app.include_router(chat_router)   # prefix handles /api/chat internally
 
 

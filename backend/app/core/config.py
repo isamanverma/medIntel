@@ -77,6 +77,11 @@ class Settings:
     OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY", "")
     OPENROUTER_MODEL: str = os.getenv("OPENROUTER_MODEL", "openai/gpt-4o")
 
+    # ── CometChat (Video Calling) ─────────────────────────────────
+    COMETCHAT_APP_ID: str = os.getenv("COMETCHAT_APP_ID", "")
+    COMETCHAT_REGION: str = os.getenv("COMETCHAT_REGION", "us")
+    COMETCHAT_REST_API_KEY: str = os.getenv("COMETCHAT_REST_API_KEY", "")
+
     def __init__(self) -> None:
         if not self.DATABASE_URL:
             raise ValueError(

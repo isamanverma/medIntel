@@ -1,22 +1,24 @@
 "use client";
 
+import type { Appointment, MappingPatient } from "@/lib/types";
 import {
   Calendar,
   CheckCircle,
-  XCircle,
   Clock,
   Inbox,
-  TrendingUp,
   RefreshCw,
+  TrendingUp,
+  XCircle,
 } from "lucide-react";
-import { useState, useMemo, useEffect } from "react";
-import { usePagination } from "@/hooks/use-pagination";
-import { Pagination } from "@/components/ui/Pagination";
-import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useEffect, useMemo, useState } from "react";
+
+import { AppointmentCallGate } from "@/components/chat/AppointmentCallGate";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import type { Appointment, MappingPatient } from "@/lib/types";
+import { Pagination } from "@/components/ui/Pagination";
+import { cn } from "@/lib/utils";
+import { usePagination } from "@/hooks/use-pagination";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -24,9 +26,12 @@ type StatusFilter = "ALL" | "PENDING" | "CONFIRMED" | "COMPLETED" | "CANCELLED";
 
 interface AppointmentsViewProps {
   upcoming: Appointment[];
+  history: Appointment[];
   patients: MappingPatient[];
   onStatusUpdate: (id: string, status: string) => Promise<void>;
   onRefresh: () => Promise<void>;
+  /** Whether the CometChat SDK session is ready (controls call button). */
+  sessionReady?: boolean;
 }
 
 // ─── Config ───────────────────────────────────────────────────────────────────
@@ -119,10 +124,12 @@ function AppointmentRow({
   appt,
   patientName,
   onStatusUpdate,
+  sessionReady = false,
 }: {
   appt: Appointment;
   patientName: string;
   onStatusUpdate: (id: string, status: string) => Promise<void>;
+  sessionReady?: boolean;
 }) {
   const cfg =
     STATUS_CONFIG[appt.status as keyof typeof STATUS_CONFIG] ??
@@ -200,14 +207,32 @@ function AppointmentRow({
         )}
 
         {appt.status === "CONFIRMED" && (
-          <button
-            onClick={() => onStatusUpdate(appt.id, "COMPLETED")}
-            title="Mark as completed"
-            className="flex h-7 items-center gap-1.5 rounded-md bg-sky-500/10 px-2.5 text-xs font-medium text-sky-600 hover:bg-sky-500/20 transition-colors dark:text-sky-400"
-          >
-            <TrendingUp className="h-3 w-3" />
-            Done
-          </button>
+          <div className="flex gap-1">
+            <button
+              onClick={() => onStatusUpdate(appt.id, "COMPLETED")}
+              title="Mark as completed"
+              className="flex h-7 items-center gap-1.5 rounded-md bg-sky-500/10 px-2.5 text-xs font-medium text-sky-600 hover:bg-sky-500/20 transition-colors dark:text-sky-400"
+            >
+              <TrendingUp className="h-3 w-3" />
+              Done
+            </button>
+            <button
+              onClick={() => onStatusUpdate(appt.id, "CANCELLED")}
+              title="Cancel appointment"
+              className="flex h-7 w-7 items-center justify-center rounded-md bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors"
+            >
+              <XCircle className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
+
+        {/* Video call gate — hidden for completed / cancelled appointments */}
+        {appt.status !== "COMPLETED" && appt.status !== "CANCELLED" && (
+          <AppointmentCallGate
+            appointmentId={appt.id}
+            fallbackName={patientName}
+            sessionReady={sessionReady}
+          />
         )}
       </div>
     </div>
@@ -218,12 +243,20 @@ function AppointmentRow({
 
 export function AppointmentsView({
   upcoming,
+  history,
   patients,
   onStatusUpdate,
   onRefresh,
+  sessionReady = false,
 }: AppointmentsViewProps) {
   const [filter, setFilter] = useState<StatusFilter>("ALL");
   const [refreshing, setRefreshing] = useState(false);
+
+  // All appointments: upcoming (active) + history (completed/cancelled)
+  const allAppointments = useMemo(
+    () => [...upcoming, ...history],
+    [upcoming, history],
+  );
 
   // Build a fast profile_id → display name lookup
   const patientNameMap = useMemo(() => {
@@ -236,29 +269,51 @@ export function AppointmentsView({
 
   const counts: Record<StatusFilter, number> = useMemo(
     () => ({
-      ALL: upcoming.length,
-      PENDING: upcoming.filter((a) => a.status === "PENDING").length,
-      CONFIRMED: upcoming.filter((a) => a.status === "CONFIRMED").length,
-      COMPLETED: upcoming.filter((a) => a.status === "COMPLETED").length,
-      CANCELLED: upcoming.filter((a) => a.status === "CANCELLED").length,
+      ALL: allAppointments.length,
+      PENDING: allAppointments.filter((a) => a.status === "PENDING").length,
+      CONFIRMED: allAppointments.filter((a) => a.status === "CONFIRMED").length,
+      COMPLETED: allAppointments.filter((a) => a.status === "COMPLETED").length,
+      CANCELLED: allAppointments.filter((a) => a.status === "CANCELLED").length,
     }),
-    [upcoming],
+    [allAppointments],
   );
 
   const todayCount = useMemo(
-    () => upcoming.filter((a) => isToday(a.scheduled_time)).length,
-    [upcoming],
+    () => allAppointments.filter((a) => isToday(a.scheduled_time)).length,
+    [allAppointments],
   );
 
   const sorted = useMemo(() => {
     const filtered =
-      filter === "ALL" ? upcoming : upcoming.filter((a) => a.status === filter);
-    return [...filtered].sort(
+      filter === "ALL"
+        ? allAppointments
+        : allAppointments.filter((a) => a.status === filter);
+    // Active appointments first (asc), past/cancelled last (desc)
+    const now = new Date();
+    const active = filtered.filter(
+      (a) =>
+        new Date(a.scheduled_time) >= now ||
+        a.status === "PENDING" ||
+        a.status === "CONFIRMED",
+    );
+    const past = filtered.filter(
+      (a) =>
+        new Date(a.scheduled_time) < now &&
+        a.status !== "PENDING" &&
+        a.status !== "CONFIRMED",
+    );
+    active.sort(
       (a, b) =>
         new Date(a.scheduled_time).getTime() -
         new Date(b.scheduled_time).getTime(),
     );
-  }, [upcoming, filter]);
+    past.sort(
+      (a, b) =>
+        new Date(b.scheduled_time).getTime() -
+        new Date(a.scheduled_time).getTime(),
+    );
+    return [...active, ...past];
+  }, [allAppointments, filter]);
 
   const pagination = usePagination(sorted, { pageSize: 10 });
 
@@ -390,6 +445,7 @@ export function AppointmentsView({
                     patientNameMap.get(appt.patient_id) ?? "Unknown Patient"
                   }
                   onStatusUpdate={onStatusUpdate}
+                  sessionReady={sessionReady}
                 />
               ))}
             </div>

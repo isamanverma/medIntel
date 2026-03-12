@@ -63,12 +63,31 @@ export type {
 } from "@/lib/types";
 
 import type {
-  UserPublic,
-  ApiError,
-  TokenResponse,
-  SignupRequest,
-  LoginRequest,
+  AdherenceStats,
+  AdminStats,
+  Appointment,
+  DoctorProfile,
+  MappingDoctor,
+  MappingPatient,
+  MedicalReport,
+  PatientDiscoveryResult,
+  PatientProfile,
 } from "@/lib/types";
+import type {
+  AdminAssignment,
+  CareTeam,
+  CareTeamMember,
+  Referral,
+} from "@/lib/types";
+import type {
+  ApiError,
+  LoginRequest,
+  SignupRequest,
+  TokenResponse,
+  UserPublic,
+} from "@/lib/types";
+
+import type { AssignableUsersResponse } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
 //  Custom error class
@@ -183,19 +202,7 @@ export async function getMe(): Promise<UserPublic> {
 //  Domain API — called directly from the browser (client-side)
 // ---------------------------------------------------------------------------
 
-import type {
-  PatientProfile,
-  DoctorProfile,
-  Appointment,
-  AdminStats,
-  MappingDoctor,
-  MappingPatient,
-  MedicalReport,
-  ReportInsights,
-  RAGChatSource,
-  AdherenceStats,
-  PatientDiscoveryResult,
-} from "@/lib/types";
+import type { RAGChatSource, ReportInsights } from "@/lib/types";
 
 // — Profiles ——————————————————————————————————————
 
@@ -413,8 +420,8 @@ export async function updateAppointmentStatus(
   status: string,
   meeting_notes?: string,
 ): Promise<Appointment> {
-  return request<Appointment>(`/api/appointments/${appointmentId}/status`, {
-    method: "PATCH",
+  return request<Appointment>(`/api/appointments/${appointmentId}`, {
+    method: "PUT",
     body: JSON.stringify({ status, meeting_notes }),
   });
 }
@@ -525,12 +532,6 @@ export async function updatePatientProfile(
 
 // — Referrals —————————————————————————————————————
 
-import type {
-  Referral,
-  CareTeam,
-  CareTeamMember,
-  AdminAssignment,
-} from "@/lib/types";
 
 export interface CreateReferralData {
   referred_doctor_id: string;
@@ -605,7 +606,6 @@ export async function getDoctorCareTeams(): Promise<CareTeam[]> {
 
 // — Admin Assignments —————————————————————————————
 
-import type { AssignableUsersResponse } from "@/lib/types";
 
 export interface CreateAssignmentData {
   patient_id: string;
@@ -792,5 +792,43 @@ export async function searchChatUsers(
 ): Promise<import("./types").ChatUserResult[]> {
   return request<import("./types").ChatUserResult[]>(
     `/api/chat/users/searchable?q=${encodeURIComponent(q)}`,
+  );
+}
+
+// ── Video Calling ─────────────────────────────────────────────────────────────
+
+export interface VideoTokenResponse {
+  cometchat_uid: string;
+  auth_token: string;
+  app_id: string;
+  region: string;
+}
+
+export interface CallEligibilityResponse {
+  eligible: boolean;
+  reason: string;
+  appointment_id: string;
+  scheduled_time: string;
+  other_party_cometchat_uid: string | null;
+  other_party_name: string | null;
+}
+
+/**
+ * Provision the current user in CometChat and return a fresh auth token.
+ * Safe to call on every page load — idempotent on the server.
+ */
+export async function getVideoToken(): Promise<VideoTokenResponse> {
+  return request<VideoTokenResponse>("/api/video/token", { method: "POST" });
+}
+
+/**
+ * Check whether a video call button should be shown for the given appointment.
+ * Eligibility window: scheduled_time − 5 min → + 60 min (CONFIRMED only).
+ */
+export async function getCallEligibility(
+  appointmentId: string,
+): Promise<CallEligibilityResponse> {
+  return request<CallEligibilityResponse>(
+    `/api/video/eligibility/${appointmentId}`,
   );
 }

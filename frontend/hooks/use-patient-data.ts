@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import type { Appointment, MappingDoctor, PatientProfile } from "@/lib/types";
 import {
-  getUpcomingAppointments,
   getAppointmentHistory,
   getMyDoctors,
   getMyPatientProfile,
+  getUpcomingAppointments,
 } from "@/lib/api-client";
-import type { Appointment, MappingDoctor, PatientProfile } from "@/lib/types";
+import { useCallback, useState } from "react";
 
 export interface PatientData {
   upcoming: Appointment[];
@@ -58,5 +58,7 @@ export function usePatientData() {
     loading,
     fetchData,
     updateProfile,
+    setUpcoming,
+    setHistory,
   };
 }

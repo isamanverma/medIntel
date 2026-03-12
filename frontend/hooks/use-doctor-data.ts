@@ -1,24 +1,26 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import {
-  getUpcomingAppointments,
-  getMyPatients,
-  getMyDoctorProfile,
-  getSentReferrals,
-  getReceivedReferrals,
-  getDoctorCareTeams,
-} from "@/lib/api-client";
 import type {
   Appointment,
-  MappingPatient,
-  DoctorProfile,
-  Referral,
   CareTeam,
+  DoctorProfile,
+  MappingPatient,
+  Referral,
 } from "@/lib/types";
+import {
+  getAppointmentHistory,
+  getDoctorCareTeams,
+  getMyDoctorProfile,
+  getMyPatients,
+  getReceivedReferrals,
+  getSentReferrals,
+  getUpcomingAppointments,
+} from "@/lib/api-client";
+import { useCallback, useState } from "react";
 
 export interface DoctorData {
   upcoming: Appointment[];
+  history: Appointment[];
   patients: MappingPatient[];
   profile: DoctorProfile | null;
   sentReferrals: Referral[];
@@ -29,6 +31,7 @@ export interface DoctorData {
 
 export function useDoctorData() {
   const [upcoming, setUpcoming] = useState<Appointment[]>([]);
+  const [history, setHistory] = useState<Appointment[]>([]);
   const [patients, setPatients] = useState<MappingPatient[]>([]);
   const [profile, setProfile] = useState<DoctorProfile | null>(null);
   const [sentReferrals, setSentReferrals] = useState<Referral[]>([]);
@@ -42,6 +45,7 @@ export function useDoctorData() {
       // second round-trip after the others finish.
       const [
         upcomingRes,
+        historyRes,
         patientsRes,
         sentRef,
         receivedRef,
@@ -49,6 +53,7 @@ export function useDoctorData() {
         profileRes,
       ] = await Promise.allSettled([
         getUpcomingAppointments(),
+        getAppointmentHistory(),
         getMyPatients(),
         getSentReferrals(),
         getReceivedReferrals(),
@@ -57,6 +62,7 @@ export function useDoctorData() {
       ]);
 
       if (upcomingRes.status === "fulfilled") setUpcoming(upcomingRes.value);
+      if (historyRes.status === "fulfilled") setHistory(historyRes.value);
       if (patientsRes.status === "fulfilled") setPatients(patientsRes.value);
       if (sentRef.status === "fulfilled") setSentReferrals(sentRef.value);
       if (receivedRef.status === "fulfilled")
@@ -75,6 +81,7 @@ export function useDoctorData() {
 
   return {
     upcoming,
+    history,
     patients,
     profile,
     sentReferrals,
@@ -83,5 +90,7 @@ export function useDoctorData() {
     loading,
     fetchData,
     updateProfile,
+    setUpcoming,
+    setHistory,
   };
 }
