@@ -18,6 +18,7 @@ import { AppointmentsView } from "@/components/patient/views/AppointmentsView";
 import { DoctorsView } from "@/components/patient/views/DoctorsView";
 import { ProfileView } from "@/components/patient/views/ProfileView";
 import { ChatView } from "@/components/patient/views/ChatView";
+import { ReportsView } from "@/components/patient/views/ReportsView";
 import { ProfileFormModal } from "@/components/patient/modals/ProfileFormModal";
 import { BookingFormModal } from "@/components/patient/modals/BookingFormModal";
 
@@ -166,7 +167,9 @@ export function PatientDashboardShell() {
                 ? "Dashboard"
                 : activeView === "chat"
                   ? "Secure Chat"
-                  : activeView.replace("-", " ")}
+                  : activeView === "reports"
+                    ? "Reports & Insights"
+                    : activeView.replace("-", " ")}
             </span>
           </div>
 
@@ -245,6 +248,9 @@ export function PatientDashboardShell() {
                   await Promise.all([fetchData(), refreshSession()]);
                 }}
               />
+            )}
+            {activeView === "reports" && profile && (
+              <ReportsView patientId={profile.id} />
             )}
           </div>
         </main>

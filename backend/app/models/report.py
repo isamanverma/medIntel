@@ -4,7 +4,7 @@ from typing import Optional, TYPE_CHECKING
 
 from sqlmodel import SQLModel, Field, Relationship
 from sqlalchemy import Column, Enum as SAEnum, DateTime, String, Text, text
-from sqlalchemy.dialects.postgresql import UUID as PGUUID
+from sqlalchemy.dialects.postgresql import UUID as PGUUID, JSONB
 
 from app.models.enums import AIAnalysisStatus
 
@@ -37,6 +37,16 @@ class MedicalReport(SQLModel, table=True):
     file_url: str = Field(
         sa_column=Column(String(1024), nullable=False),
     )
+    # Original filename displayed to user (e.g. "blood_work_2026.pdf")
+    file_name: Optional[str] = Field(
+        default=None,
+        sa_column=Column(String(255), nullable=True),
+    )
+    # MIME type (e.g. "application/pdf", "image/jpeg")
+    file_type: Optional[str] = Field(
+        default=None,
+        sa_column=Column(String(100), nullable=True),
+    )
     report_type: str = Field(
         sa_column=Column(String(100), nullable=False),  # e.g. "Blood Work", "MRI"
     )
@@ -58,6 +68,17 @@ class MedicalReport(SQLModel, table=True):
     ai_summary: Optional[str] = Field(
         default=None,
         sa_column=Column(Text, nullable=True),
+    )
+    # PageIndex hierarchical tree structure for reasoning-based RAG
+    page_index_tree: Optional[dict] = Field(
+        default=None,
+        sa_column=Column(JSONB, nullable=True),
+    )
+    # Structured medical insights extracted via AI
+    # Schema: {medications, diagnoses, lab_values, key_findings, risk_flags, summary}
+    ai_insights: Optional[dict] = Field(
+        default=None,
+        sa_column=Column(JSONB, nullable=True),
     )
 
     # ── Relationships ──────────────────────────────────────────────

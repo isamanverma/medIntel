@@ -38,19 +38,29 @@ async function handler(
     // Read the HttpOnly cookie and convert to Bearer header
     const token = request.cookies.get("access_token")?.value;
 
-    const headers: Record<string, string> = {
-        "Content-Type": request.headers.get("Content-Type") ?? "application/json",
-    };
+    const headers: Record<string, string> = {};
+
+    // Forward most incoming headers, but drop hop-by-hop headers.
+    request.headers.forEach((value, key) => {
+        const lower = key.toLowerCase();
+        if (lower === "host" || lower === "connection" || lower === "content-length") {
+            return;
+        }
+        headers[key] = value;
+    });
 
     if (token) {
         headers["Authorization"] = `Bearer ${token}`;
     }
 
     // Forward the request body for non-GET methods
-    let body: string | null = null;
+    let body: BodyInit | undefined;
     if (request.method !== "GET" && request.method !== "HEAD") {
         try {
-            body = await request.text();
+            const bytes = await request.arrayBuffer();
+            if (bytes.byteLength > 0) {
+                body = bytes;
+            }
         } catch {
             // No body
         }
@@ -63,8 +73,17 @@ async function handler(
             body,
         });
 
-        const data = await backendRes.text();
+        // 204/304 cannot include a response body in NextResponse constructor.
+        if (backendRes.status === 204 || backendRes.status === 304) {
+            return new NextResponse(null, {
+                status: backendRes.status,
+                headers: {
+                    "Content-Type": backendRes.headers.get("Content-Type") ?? "text/plain",
+                },
+            });
+        }
 
+        const data = await backendRes.text();
         return new NextResponse(data, {
             status: backendRes.status,
             headers: {

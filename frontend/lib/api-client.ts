@@ -191,6 +191,8 @@ import type {
   MappingDoctor,
   MappingPatient,
   MedicalReport,
+  ReportInsights,
+  RAGChatSource,
   AdherenceStats,
   PatientDiscoveryResult,
 } from "@/lib/types";
@@ -270,6 +272,53 @@ export async function getMyReports(
   patientId: string,
 ): Promise<MedicalReport[]> {
   return request<MedicalReport[]>(`/api/reports/patient/${patientId}`);
+}
+
+export async function uploadReport(
+  formData: FormData,
+): Promise<MedicalReport> {
+  const url = `${getBaseUrl()}/api/reports/upload`;
+  const res = await fetch(url, {
+    method: "POST",
+    credentials: "include",
+    body: formData, // multipart — do NOT set Content-Type manually
+  });
+  let body: unknown;
+  try {
+    body = await res.json();
+  } catch {
+    body = null;
+  }
+  if (!res.ok) {
+    const detail =
+      (body as { detail?: string } | null)?.detail ??
+      `Upload failed with ${res.status}`;
+    throw new BackendError(res.status, detail);
+  }
+  return body as MedicalReport;
+}
+
+export async function getReportInsights(
+  patientId: string,
+): Promise<ReportInsights> {
+  return request<ReportInsights>(
+    `/api/reports/patient/${patientId}/insights`,
+  );
+}
+
+export interface RAGChatResponse {
+  answer: string;
+  sources: RAGChatSource[];
+}
+
+export async function sendRAGQuery(
+  query: string,
+  patientId: string,
+): Promise<RAGChatResponse> {
+  return request<RAGChatResponse>("/api/reports/rag-chat", {
+    method: "POST",
+    body: JSON.stringify({ query, patient_id: patientId }),
+  });
 }
 
 // — Adherence —————————————————————————————————————
