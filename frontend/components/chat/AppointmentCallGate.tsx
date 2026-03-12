@@ -71,11 +71,17 @@ export function AppointmentCallGate({
   }, [appointmentId]);
 
   useEffect(() => {
+    if (!sessionReady) {
+      setEligibility(null);
+      setLoading(false);
+      return;
+    }
+
     checkEligibility();
     // Re-check every 60 s so the button appears/disappears as the window opens
     const timer = setInterval(checkEligibility, 60_000);
     return () => clearInterval(timer);
-  }, [checkEligibility]);
+  }, [checkEligibility, sessionReady]);
 
   // Nothing to show yet
   if (loading || !eligibility) return null;

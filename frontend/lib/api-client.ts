@@ -36,6 +36,12 @@ const ABSOLUTE_BACKEND_URL: string =
   process.env.BACKEND_URL ??
   "http://localhost:8000";
 
+let unauthorizedHandler: (() => void) | null = null;
+
+export function setUnauthorizedHandler(handler: (() => void) | null): void {
+  unauthorizedHandler = handler;
+}
+
 /**
  * Returns "" (empty string = relative URL) on client-side so requests
  * hit the Next.js rewrite proxy, or the absolute URL on server-side.
@@ -86,6 +92,7 @@ import type {
   TokenResponse,
   UserPublic,
 } from "@/lib/types";
+import type { RAGChatSource, ReportInsights } from "@/lib/types";
 
 import type { AssignableUsersResponse } from "@/lib/types";
 
@@ -139,6 +146,9 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   }
 
   if (!res.ok) {
+    if (res.status === 401) {
+      unauthorizedHandler?.();
+    }
     const detail =
       (body as ApiError | null)?.detail ??
       `Backend responded with ${res.status}`;
@@ -202,7 +212,6 @@ export async function getMe(): Promise<UserPublic> {
 //  Domain API — called directly from the browser (client-side)
 // ---------------------------------------------------------------------------
 
-import type { RAGChatSource, ReportInsights } from "@/lib/types";
 
 // — Profiles ——————————————————————————————————————
 

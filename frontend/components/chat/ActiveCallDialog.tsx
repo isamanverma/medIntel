@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import type { CometChat } from "@cometchat/chat-sdk-javascript";
 import type { CometChatCalls } from "@cometchat/calls-sdk-javascript";
 import { cn } from "@/lib/utils";
+import { getVideoToken } from "@/lib/api-client";
 
 async function getCometChat() {
   const mod = await import("@cometchat/chat-sdk-javascript");
@@ -76,50 +77,60 @@ export interface ActiveCallDialogProps {
 
 export function ActiveCallDialog({ call, onCallEnded }: ActiveCallDialogProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const sessionId = call.getSessionId();
   const [sessionState, setSessionState] = useState<
     "loading" | "active" | "error"
   >("loading");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const APP_ID = process.env.NEXT_PUBLIC_COMETCHAT_APP_ID ?? "";
-    const REGION = process.env.NEXT_PUBLIC_COMETCHAT_REGION ?? "us";
-
     let unmounted = false;
 
     (async () => {
       try {
-        // 1. Ensure Calls SDK is initialised
-        await ensureCallsSDKInit(APP_ID, REGION);
+        // 1. Always fetch a fresh backend token + canonical app config
+        const tokenResp = await getVideoToken();
         if (unmounted) return;
 
-        // 2. Get the logged-in user's auth token
+        // 2. Ensure Calls SDK is initialised with backend-provided app settings
+        await ensureCallsSDKInit(tokenResp.app_id, tokenResp.region);
+        if (unmounted) return;
+
+        // 3. Validate CometChat user session exists
         const CometChat = await getCometChat();
         const CometChatCalls = await getCometChatCalls();
         const user = await CometChat.getLoggedinUser();
-        if (!user || unmounted) return;
+        if (!user) {
+          throw new Error("CometChat user session not ready.");
+        }
+        if (unmounted) return;
 
-        const authToken = user.getAuthToken();
-        const sessionId = call.getSessionId();
-
-        // 3. Generate a call-specific token
+        // 4. Generate a call-specific token using a fresh backend auth token
         const callTokenResult = await CometChatCalls.generateToken(
           sessionId,
-          authToken,
+          tokenResp.auth_token,
         );
         if (unmounted || !containerRef.current) return;
 
-        // 4. Configure the call listener
+        // 5. Configure the call listener (minimal, docs-style)
         const callListener = new CometChatCalls.OngoingCallListener({
           onCallEnded: () => {
             CometChat.clearActiveCall();
-            CometChatCalls.endSession();
+            try {
+              CometChatCalls.endSession();
+            } catch {
+              // ignore end-session errors
+            }
             onCallEnded();
           },
           onCallEndButtonPressed: () => {
             CometChat.endCall(sessionId).finally(() => {
               CometChat.clearActiveCall();
-              CometChatCalls.endSession();
+              try {
+                CometChatCalls.endSession();
+              } catch {
+                // ignore end-session errors
+              }
               onCallEnded();
             });
           },
@@ -129,10 +140,12 @@ export function ActiveCallDialog({ call, onCallEnded }: ActiveCallDialogProps) {
           },
         });
 
-        // 5. Build call settings and start the session
+        // 6. Build default call settings and start the session
         const callSettings = new CometChatCalls.CallSettingsBuilder()
           .enableDefaultLayout(true)
           .setIsAudioOnlyCall(false)
+          .startWithAudioMuted(false)
+          .startWithVideoMuted(false)
           .setCallListener(callListener)
           .build();
 
@@ -162,7 +175,7 @@ export function ActiveCallDialog({ call, onCallEnded }: ActiveCallDialogProps) {
       }).catch(() => {/* ignore */});
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [call]);
+  }, [sessionId]);
 
   function handleForceEnd() {
     Promise.all([getCometChat(), getCometChatCalls()])

@@ -79,12 +79,13 @@ export function PatientDashboardShell() {
 
   // ── Cross-side polling: refresh appointments every 30s when on that view ───
   useEffect(() => {
+    if (status !== "authenticated") return;
     if (activeView !== "appointments") return;
     const id = setInterval(() => {
       fetchData();
     }, 30_000);
     return () => clearInterval(id);
-  }, [activeView, fetchData]);
+  }, [activeView, fetchData, status]);
 
   // ── Profile form ───────────────────────────────────────────────────────────
   const profileForm = useProfileForm({

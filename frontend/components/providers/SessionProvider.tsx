@@ -1,5 +1,10 @@
 "use client";
 
+import type {
+  AuthSession,
+  SessionStatus,
+  UserPublic,
+} from "@/lib/types";
 import {
   createContext,
   useCallback,
@@ -9,11 +14,7 @@ import {
   useState,
 } from "react";
 
-import type {
-  UserPublic,
-  AuthSession,
-  SessionStatus,
-} from "@/lib/types";
+import { setUnauthorizedHandler } from "@/lib/api-client";
 
 // Re-export types so existing consumers of SessionProvider types still work
 export type { AuthSession, SessionStatus } from "@/lib/types";
@@ -159,6 +160,16 @@ export default function SessionProvider({ children }: AuthProviderProps) {
   useEffect(() => {
     refreshSession();
   }, [refreshSession]);
+
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      setSession(null);
+      setStatus("unauthenticated");
+    };
+
+    setUnauthorizedHandler(handleUnauthorized);
+    return () => setUnauthorizedHandler(null);
+  }, []);
 
   // ── Memoize the context value to avoid unnecessary re-renders ────
 
