@@ -25,7 +25,11 @@ import { BookingFormModal } from "@/components/patient/modals/BookingFormModal";
 import { usePatientData } from "@/hooks/use-patient-data";
 import { useProfileForm } from "@/hooks/use-profile-form";
 import { useBookingForm } from "@/hooks/use-booking-form";
-import { createChatRoom } from "@/lib/api-client";
+import { createChatRoom, updateAppointmentStatus } from "@/lib/api-client";
+import type { CometChat } from "@cometchat/chat-sdk-javascript";
+import { useCometChatSession } from "@/hooks/use-cometchat-session";
+import { IncomingCallBanner } from "@/components/chat/IncomingCallBanner";
+import { ActiveCallDialog } from "@/components/chat/ActiveCallDialog";
 
 export function PatientDashboardShell() {
   const { session, status, logout, refreshSession } = useAuth();
@@ -39,6 +43,10 @@ export function PatientDashboardShell() {
     null,
   );
   const [chatSwitchTrigger, setChatSwitchTrigger] = useState(0);
+
+  // ── CometChat video call ────────────────────────────────────────────────────
+  const { isReady: cometChatReady } = useCometChatSession();
+  const [activeCall, setActiveCall] = useState<CometChat.Call | null>(null);
 
   // ── Auth guard ─────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -59,6 +67,8 @@ export function PatientDashboardShell() {
     loading,
     fetchData,
     updateProfile,
+    setUpcoming,
+    setHistory,
   } = usePatientData();
 
   useEffect(() => {
@@ -66,6 +76,15 @@ export function PatientDashboardShell() {
       fetchData();
     }
   }, [status, session, fetchData]);
+
+  // ── Cross-side polling: refresh appointments every 30s when on that view ───
+  useEffect(() => {
+    if (activeView !== "appointments") return;
+    const id = setInterval(() => {
+      fetchData();
+    }, 30_000);
+    return () => clearInterval(id);
+  }, [activeView, fetchData]);
 
   // ── Profile form ───────────────────────────────────────────────────────────
   const profileForm = useProfileForm({
@@ -103,6 +122,35 @@ export function PatientDashboardShell() {
       }
     },
     [toast],
+  );
+
+  // ── Cancel appointment (optimistic) ─────────────────────────────────────────
+  const handleCancelAppointment = useCallback(
+    async (appointmentId: string) => {
+      // Immediately reflect the cancellation in the UI
+      const appt = [...upcoming, ...history].find(
+        (a) => a.id === appointmentId,
+      );
+      if (appt) {
+        const cancelled = { ...appt, status: "CANCELLED" as const };
+        setUpcoming((prev) => prev.filter((a) => a.id !== appointmentId));
+        setHistory((prev) => [
+          cancelled,
+          ...prev.filter((a) => a.id !== appointmentId),
+        ]);
+      }
+      try {
+        await updateAppointmentStatus(appointmentId, "CANCELLED");
+        toast("Appointment cancelled.", "success");
+        // Background sync to confirm server state
+        fetchData().catch(() => {});
+      } catch {
+        toast("Could not cancel the appointment. Please try again.", "error");
+        // Revert by re-fetching
+        await fetchData();
+      }
+    },
+    [upcoming, history, setUpcoming, setHistory, fetchData, toast],
   );
 
   // ── Book with specific doctor (pre-fill dropdown) ──────────────────────────
@@ -228,7 +276,9 @@ export function PatientDashboardShell() {
                 history={history}
                 doctors={doctors}
                 onBookAppointment={() => bookingForm.open()}
+                onCancelAppointment={handleCancelAppointment}
                 onRefresh={fetchData}
+                sessionReady={cometChatReady}
               />
             )}
             {activeView === "doctors" && (
@@ -282,6 +332,15 @@ export function PatientDashboardShell() {
         submitting={bookingForm.submitting}
         onSubmit={bookingForm.handleSubmit}
       />
+
+      {/* ── CometChat call overlay ─────────────────────────────────────── */}
+      <IncomingCallBanner onCallAccepted={setActiveCall} />
+      {activeCall && (
+        <ActiveCallDialog
+          call={activeCall}
+          onCallEnded={() => setActiveCall(null)}
+        />
+      )}
     </SidebarProvider>
   );
 }

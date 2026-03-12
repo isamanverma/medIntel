@@ -33,7 +33,12 @@ import {
   updateReferralStatus,
   createCareTeam,
   createChatRoom,
+  sendChatMessage,
 } from "@/lib/api-client";
+import type { CometChat } from "@cometchat/chat-sdk-javascript";
+import { useCometChatSession } from "@/hooks/use-cometchat-session";
+import { IncomingCallBanner } from "@/components/chat/IncomingCallBanner";
+import { ActiveCallDialog } from "@/components/chat/ActiveCallDialog";
 
 import type { ReferralFormState } from "@/components/doctor/modals/ReferralFormModal";
 import type { CareTeamFormState } from "@/components/doctor/modals/CareTeamFormModal";
@@ -93,6 +98,10 @@ export function DoctorDashboardShell() {
   );
   const [chatSwitchTrigger, setChatSwitchTrigger] = useState(0);
 
+  // ── CometChat video call ────────────────────────────────────────────────────
+  const { isReady: cometChatReady } = useCometChatSession();
+  const [activeCall, setActiveCall] = useState<CometChat.Call | null>(null);
+
   // ── Modal open flags ───────────────────────────────────────────────────────
   const [showCreateProfile, setShowCreateProfile] = useState(false);
   const [showAddPatient, setShowAddPatient] = useState(false);
@@ -128,6 +137,7 @@ export function DoctorDashboardShell() {
   // ── Data fetching ──────────────────────────────────────────────────────────
   const {
     upcoming,
+    history,
     patients,
     profile,
     sentReferrals,
@@ -136,6 +146,8 @@ export function DoctorDashboardShell() {
     loading,
     fetchData,
     updateProfile,
+    setUpcoming,
+    setHistory,
   } = useDoctorData();
 
   useEffect(() => {
@@ -143,6 +155,15 @@ export function DoctorDashboardShell() {
       fetchData();
     }
   }, [status, session, fetchData]);
+
+  // ── Cross-side polling: refresh appointments every 30s when on that view ───
+  useEffect(() => {
+    if (activeView !== "appointments") return;
+    const id = setInterval(() => {
+      fetchData();
+    }, 30_000);
+    return () => clearInterval(id);
+  }, [activeView, fetchData]);
 
   // ── Open create-profile form (only used when no profile exists yet) ────────
   const openCreateProfileForm = useCallback(() => {
@@ -181,18 +202,84 @@ export function DoctorDashboardShell() {
 
   const handleStatusUpdate = useCallback(
     async (appointmentId: string, newStatus: string) => {
+      // Optimistic update: immediately reflect status change in UI
+      const validStatuses = ["PENDING", "CONFIRMED", "COMPLETED", "CANCELLED"];
+      if (validStatuses.includes(newStatus)) {
+        const typedStatus = newStatus as
+          | "PENDING"
+          | "CONFIRMED"
+          | "COMPLETED"
+          | "CANCELLED";
+        if (typedStatus === "COMPLETED" || typedStatus === "CANCELLED") {
+          // Move from upcoming to history
+          const appt = upcoming.find((a) => a.id === appointmentId);
+          if (appt) {
+            const updated = { ...appt, status: typedStatus };
+            setUpcoming((prev) => prev.filter((a) => a.id !== appointmentId));
+            setHistory((prev) => [
+              updated,
+              ...prev.filter((a) => a.id !== appointmentId),
+            ]);
+          }
+        } else {
+          // Update in-place in upcoming list
+          setUpcoming((prev) =>
+            prev.map((a) =>
+              a.id === appointmentId ? { ...a, status: typedStatus } : a,
+            ),
+          );
+        }
+      }
+
       try {
         await updateAppointmentStatus(appointmentId, newStatus);
         toast(`Appointment ${newStatus.toLowerCase()}!`, "success");
-        await fetchData();
+
+        // Notify the patient via chat when the doctor cancels
+        if (newStatus === "CANCELLED") {
+          const appt = upcoming.find((a) => a.id === appointmentId);
+          if (appt) {
+            const patient = patients.find(
+              (p) => p.profile_id === appt.patient_id,
+            );
+            if (patient) {
+              try {
+                const room = await createChatRoom({
+                  participant_ids: [patient.user_id],
+                });
+                const dateStr = new Date(appt.scheduled_time).toLocaleString(
+                  "en-US",
+                  {
+                    weekday: "short",
+                    month: "short",
+                    day: "numeric",
+                    hour: "numeric",
+                    minute: "2-digit",
+                  },
+                );
+                await sendChatMessage(
+                  room.id,
+                  `Your appointment scheduled for ${dateStr} has been cancelled by your doctor.`,
+                );
+              } catch {
+                // Non-critical — notification failure should not block the cancel
+              }
+            }
+          }
+        }
+
+        // Background sync
+        fetchData().catch(() => {});
       } catch (err: unknown) {
         toast(
           err instanceof Error ? err.message : "Failed to update appointment",
           "error",
         );
+        // Revert by re-fetching
+        await fetchData();
       }
     },
-    [fetchData, toast],
+    [fetchData, setUpcoming, setHistory, toast, upcoming, patients],
   );
 
   const handleCreateReferral = useCallback(async () => {
@@ -397,9 +484,11 @@ export function DoctorDashboardShell() {
             {activeView === "appointments" && (
               <AppointmentsView
                 upcoming={upcoming}
+                history={history}
                 patients={patients}
                 onStatusUpdate={handleStatusUpdate}
                 onRefresh={fetchData}
+                sessionReady={cometChatReady}
               />
             )}
 
@@ -479,6 +568,15 @@ export function DoctorDashboardShell() {
         submitting={submittingCareTeam}
         onSubmit={handleCreateCareTeam}
       />
+
+      {/* ── CometChat call overlay ─────────────────────────────────────── */}
+      <IncomingCallBanner onCallAccepted={setActiveCall} />
+      {activeCall && (
+        <ActiveCallDialog
+          call={activeCall}
+          onCallEnded={() => setActiveCall(null)}
+        />
+      )}
     </SidebarProvider>
   );
 }

@@ -1,24 +1,24 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
-import Modal from "@/components/ui/Modal";
 import {
+  AlertCircle,
   Calendar,
   Clock,
   Loader2,
-  AlertCircle,
   Sparkles,
-  X,
-  Tag,
   Stethoscope,
+  Tag,
+  X,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { useCallback, useMemo, useState } from "react";
+
+import type { BookingFormState } from "@/hooks/use-booking-form";
 import { Calendar as CalendarWidget } from "@/components/ui/calendar";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import type { MappingDoctor } from "@/lib/types";
+import Modal from "@/components/ui/Modal";
+import { cn } from "@/lib/utils";
 import { generateConditionTags } from "@/lib/api-client";
 import { useToast } from "@/components/ui/Toast";
-import type { BookingFormState } from "@/hooks/use-booking-form";
-import type { MappingDoctor } from "@/lib/types";
 
 interface BookingFormModalProps {
   isOpen: boolean;
@@ -40,21 +40,6 @@ function isSameDay(a: Date, b: Date) {
   );
 }
 
-function formatSlot(slot: string) {
-  const [h, m] = slot.split(":").map(Number);
-  const d = new Date();
-  d.setHours(h, m, 0, 0);
-  return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-}
-
-const TIME_SLOTS: string[] = (() => {
-  const slots: string[] = [];
-  for (let h = 8; h <= 18; h++) {
-    slots.push(`${String(h).padStart(2, "0")}:00`);
-    if (h < 18) slots.push(`${String(h).padStart(2, "0")}:30`);
-  }
-  return slots;
-})();
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -270,7 +255,7 @@ export function BookingFormModal({
                 />
               </div>
 
-              {/* Time slots */}
+              {/* Time picker */}
               <div className="flex flex-col gap-1.5">
                 <p className="text-[11px] font-medium text-muted-foreground px-0.5">
                   {selectedDate
@@ -281,29 +266,25 @@ export function BookingFormModal({
                       })
                     : "Pick a date first"}
                 </p>
-                <ScrollArea className="h-[252px] rounded-lg border border-border bg-muted/20 p-2">
-                  <div className="grid grid-cols-2 gap-1.5">
-                    {TIME_SLOTS.map((slot) => {
-                      const active = slot === selectedTime && !!selectedDate;
-                      return (
-                        <button
-                          key={slot}
-                          type="button"
-                          disabled={!selectedDate}
-                          onClick={() => handleTimeSelect(slot)}
-                          className={cn(
-                            "rounded-md px-2 py-1.5 text-xs font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed",
-                            active
-                              ? "bg-primary text-primary-foreground shadow-sm"
-                              : "bg-background text-muted-foreground hover:bg-muted hover:text-foreground",
-                          )}
-                        >
-                          {formatSlot(slot)}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </ScrollArea>
+                <div className="rounded-lg border border-border bg-muted/20 p-3">
+                  <label className="mb-2 flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
+                    <Clock className="h-3 w-3" />
+                    Select time
+                  </label>
+                  <input
+                    type="time"
+                    value={selectedTime}
+                    disabled={!selectedDate}
+                    onChange={(e) =>
+                      handleTimeSelect(e.target.value || "09:00")
+                    }
+                    className={cn(
+                      "w-full rounded-md border border-border bg-background px-3 py-2 text-sm font-medium text-foreground transition-colors",
+                      "focus:outline-none focus:ring-2 focus:ring-primary/40",
+                      "disabled:cursor-not-allowed disabled:opacity-40",
+                    )}
+                  />
+                </div>
               </div>
             </div>
 

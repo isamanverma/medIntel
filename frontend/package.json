@@ -10,6 +10,8 @@
     "format": "biome format --write"
   },
   "dependencies": {
+    "@cometchat/calls-sdk-javascript": "^4.2.5",
+    "@cometchat/chat-sdk-javascript": "^4.1.8",
     "@hugeicons/core-free-icons": "^4.0.0",
     "@hugeicons/react": "^1.1.6",
     "class-variance-authority": "^0.7.1",

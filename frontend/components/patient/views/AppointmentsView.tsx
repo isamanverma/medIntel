@@ -1,26 +1,27 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
-import {
-  Plus,
-  CheckCircle2,
-  XCircle,
-  AlertCircle,
-  CalendarDays,
-  FileText,
-  ChevronRight,
-  TrendingUp,
-  Info,
-  UserRound,
-  Clock,
-} from "lucide-react";
 import type { Appointment, MappingDoctor } from "@/lib/types";
-import { cn } from "@/lib/utils";
+import {
+  CalendarDays,
+  Clock,
+  Inbox,
+  Info,
+  Plus,
+  RefreshCw,
+  TrendingUp,
+  UserRound,
+  XCircle,
+} from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useEffect, useMemo, useState } from "react";
+
+import { AppointmentCallGate } from "@/components/chat/AppointmentCallGate";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Calendar as CalendarWidget } from "@/components/ui/calendar";
-import { usePagination } from "@/hooks/use-pagination";
 import { Pagination } from "@/components/ui/Pagination";
+import { cn } from "@/lib/utils";
+import { usePagination } from "@/hooks/use-pagination";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -31,79 +32,47 @@ interface AppointmentsViewProps {
   history: Appointment[];
   doctors: MappingDoctor[];
   onBookAppointment: () => void;
+  onCancelAppointment: (id: string) => Promise<void>;
   onRefresh: () => Promise<void>;
+  sessionReady?: boolean;
 }
 
-// ─── Constants ───────────────────────────────────────────────────────────────
+// ─── Config ───────────────────────────────────────────────────────────────────
 
 const STATUS_CONFIG = {
   PENDING: {
     label: "Pending",
-    icon: AlertCircle,
     badge:
-      "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400",
+      "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
     dot: "bg-amber-500",
-    accent: "border-l-amber-500",
-    stat: "text-amber-600 dark:text-amber-400",
-    statBg: "bg-amber-500/10",
   },
   CONFIRMED: {
     label: "Confirmed",
-    icon: CheckCircle2,
-    badge: "border-primary/30 bg-primary/10 text-primary",
-    dot: "bg-primary",
-    accent: "border-l-primary",
-    stat: "text-primary",
-    statBg: "bg-primary/10",
+    badge:
+      "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
+    dot: "bg-emerald-500",
   },
   COMPLETED: {
     label: "Completed",
-    icon: CheckCircle2,
-    badge:
-      "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
-    dot: "bg-emerald-500",
-    accent: "border-l-emerald-500",
-    stat: "text-emerald-600 dark:text-emerald-400",
-    statBg: "bg-emerald-500/10",
+    badge: "bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20",
+    dot: "bg-sky-500",
   },
   CANCELLED: {
     label: "Cancelled",
-    icon: XCircle,
-    badge: "border-destructive/30 bg-destructive/10 text-destructive",
+    badge: "bg-destructive/10 text-destructive border-destructive/20",
     dot: "bg-destructive",
-    accent: "border-l-destructive",
-    stat: "text-destructive",
-    statBg: "bg-destructive/10",
   },
-} as const satisfies Record<
-  Appointment["status"],
-  {
-    label: string;
-    icon: React.ElementType;
-    badge: string;
-    dot: string;
-    accent: string;
-    stat: string;
-    statBg: string;
-  }
->;
+} as const;
 
-const FILTER_LABELS: Record<StatusFilter, string> = {
-  ALL: "All",
-  PENDING: "Pending",
-  CONFIRMED: "Confirmed",
-  COMPLETED: "Completed",
-  CANCELLED: "Cancelled",
-};
+const FILTER_OPTIONS: { value: StatusFilter; label: string }[] = [
+  { value: "ALL", label: "All" },
+  { value: "PENDING", label: "Pending" },
+  { value: "CONFIRMED", label: "Confirmed" },
+  { value: "COMPLETED", label: "Completed" },
+  { value: "CANCELLED", label: "Cancelled" },
+];
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function formatTime(iso: string) {
-  return new Date(iso).toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-US", {
@@ -114,13 +83,20 @@ function formatDate(iso: string) {
   });
 }
 
+function formatTime(iso: string) {
+  return new Date(iso).toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
 function isToday(iso: string) {
   const d = new Date(iso);
   const now = new Date();
   return (
-    d.getDate() === now.getDate() &&
+    d.getFullYear() === now.getFullYear() &&
     d.getMonth() === now.getMonth() &&
-    d.getFullYear() === now.getFullYear()
+    d.getDate() === now.getDate()
   );
 }
 
@@ -129,16 +105,10 @@ function isTomorrow(iso: string) {
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
   return (
-    d.getDate() === tomorrow.getDate() &&
+    d.getFullYear() === tomorrow.getFullYear() &&
     d.getMonth() === tomorrow.getMonth() &&
-    d.getFullYear() === tomorrow.getFullYear()
+    d.getDate() === tomorrow.getDate()
   );
-}
-
-function getRelativeLabel(iso: string): string | null {
-  if (isToday(iso)) return "Today";
-  if (isTomorrow(iso)) return "Tomorrow";
-  return null;
 }
 
 function isSameDay(a: Date, b: Date) {
@@ -149,240 +119,113 @@ function isSameDay(a: Date, b: Date) {
   );
 }
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
+function getRelativeLabel(iso: string): string | null {
+  if (isToday(iso)) return "Today";
+  if (isTomorrow(iso)) return "Tomorrow";
+  return null;
+}
 
-function AppointmentTimelineCard({
+// ─── Appointment Row ──────────────────────────────────────────────────────────
+
+function AppointmentRow({
   appt,
-  isLast,
   doctorName,
+  onCancelAppointment,
+  sessionReady = false,
 }: {
   appt: Appointment;
-  isLast: boolean;
   doctorName: string;
+  onCancelAppointment: (id: string) => Promise<void>;
+  sessionReady?: boolean;
 }) {
-  const d = new Date(appt.scheduled_time);
-  const config = STATUS_CONFIG[appt.status];
-  const StatusIcon = config.icon;
+  const cfg =
+    STATUS_CONFIG[appt.status as keyof typeof STATUS_CONFIG] ??
+    STATUS_CONFIG.PENDING;
   const rel = getRelativeLabel(appt.scheduled_time);
 
   return (
-    <div className="relative flex gap-4">
-      {/* Timeline line */}
-      <div className="flex flex-col items-center">
-        <div
-          className={cn(
-            "relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-background shadow-sm",
-            config.statBg,
-          )}
-        >
-          <StatusIcon className={cn("h-3.5 w-3.5", config.stat)} />
-        </div>
-        {!isLast && (
-          <div
-            className="mt-1 w-px flex-1 bg-border"
-            style={{ minHeight: "1.5rem" }}
-          />
-        )}
-      </div>
-
-      {/* Card */}
-      <div
-        className={cn(
-          "mb-4 flex-1 rounded-xl border border-l-4 bg-card shadow-sm transition-shadow hover:shadow-md",
-          config.accent,
-        )}
-      >
-        <div className="p-4">
-          {/* Header row */}
-          <div className="flex items-start justify-between gap-2">
-            <div className="space-y-0.5">
-              {rel && (
-                <span
-                  className={cn(
-                    "inline-block rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest",
-                    appt.status === "CONFIRMED"
-                      ? "bg-primary/10 text-primary"
-                      : "bg-amber-500/10 text-amber-600 dark:text-amber-400",
-                  )}
-                >
-                  {rel}
-                </span>
-              )}
-              <div className="flex items-center gap-1.5">
-                <UserRound className="h-3.5 w-3.5 text-muted-foreground/60" />
-                <p className="text-sm font-semibold text-card-foreground">
-                  {doctorName}
-                </p>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {formatDate(appt.scheduled_time)}
-              </p>
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Clock className="h-3 w-3" />
-                {formatTime(appt.scheduled_time)}
-              </div>
-            </div>
-
-            {/* Status badge */}
-            <span
-              className={cn(
-                "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-semibold",
-                config.badge,
-              )}
-            >
-              <span className={cn("h-1.5 w-1.5 rounded-full", config.dot)} />
-              {config.label}
-            </span>
-          </div>
-
-          {/* Notes */}
-          {appt.notes && (
-            <div className="mt-3 flex items-start gap-2 rounded-lg bg-muted/50 px-3 py-2">
-              <FileText className="mt-0.5 h-3 w-3 shrink-0 text-muted-foreground/60" />
-              <p className="text-xs leading-relaxed text-muted-foreground line-clamp-2">
-                {appt.notes}
-              </p>
-            </div>
-          )}
-
-          {/* Footer */}
-          <div className="mt-3 flex items-center justify-between">
-            <p className="font-mono text-[10px] text-muted-foreground/40 select-all">
-              #{appt.id.slice(0, 8).toUpperCase()}
-            </p>
-            <div className="flex items-center gap-1 text-[10px] text-muted-foreground/50">
-              <CalendarDays className="h-3 w-3" />
-              {d.toLocaleDateString("en-US", { weekday: "long" })}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function AppointmentListRow({
-  appt,
-  doctorName,
-}: {
-  appt: Appointment;
-  doctorName: string;
-}) {
-  const config = STATUS_CONFIG[appt.status];
-  const StatusIcon = config.icon;
-
-  return (
-    <div className="group flex items-center gap-4 rounded-xl border border-border bg-card px-5 py-4 shadow-sm transition-shadow hover:shadow-md">
-      {/* Date block */}
-      <div className="flex w-14 shrink-0 flex-col items-center rounded-lg border border-border bg-muted/40 py-2.5 text-center">
-        <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+    <div className="flex items-center gap-4 px-6 py-4 hover:bg-muted/50 transition-colors group">
+      {/* Date blob */}
+      <div className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-xl bg-primary/15 text-primary">
+        <span className="text-[10px] font-semibold uppercase leading-none tracking-wide">
           {new Date(appt.scheduled_time).toLocaleDateString("en-US", {
             month: "short",
           })}
         </span>
-        <span className="text-2xl font-bold leading-tight text-foreground tabular-nums">
+        <span className="text-lg font-bold leading-tight">
           {new Date(appt.scheduled_time).getDate()}
-        </span>
-        <span className="text-[10px] text-muted-foreground/60">
-          {new Date(appt.scheduled_time).getFullYear()}
         </span>
       </div>
 
       {/* Info */}
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1.5">
-          <UserRound className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50" />
-          <p className="text-sm font-semibold text-card-foreground truncate">
-            {doctorName}
-          </p>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
+            <UserRound className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50" />
+            <p className="text-sm font-semibold text-foreground">{doctorName}</p>
+          </div>
+          {rel && (
+            <Badge
+              variant="outline"
+              className={cn(
+                "h-5 px-1.5 text-[10px] font-semibold",
+                rel === "Today"
+                  ? "border-amber-500/30 text-amber-600 bg-amber-500/5 dark:text-amber-400"
+                  : "border-sky-500/30 text-sky-600 bg-sky-500/5 dark:text-sky-400",
+              )}
+            >
+              {rel}
+            </Badge>
+          )}
         </div>
-        <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
-          <span>{formatTime(appt.scheduled_time)}</span>
-          <span className="text-muted-foreground/30">·</span>
-          <span>
-            {new Date(appt.scheduled_time).toLocaleDateString("en-US", {
-              weekday: "long",
-            })}
-          </span>
-        </div>
-        {appt.notes && (
-          <p className="mt-1 text-xs text-muted-foreground/70 line-clamp-1">
-            {appt.notes}
-          </p>
-        )}
+        <p className="mt-0.5 text-xs text-foreground/60">
+          {formatDate(appt.scheduled_time)} &middot;{" "}
+          {formatTime(appt.scheduled_time)}
+          {appt.notes && (
+            <span className="text-foreground/40">
+              {" "}
+              &middot;{" "}
+              {appt.notes.length > 60
+                ? appt.notes.slice(0, 60) + "..."
+                : appt.notes}
+            </span>
+          )}
+        </p>
       </div>
 
-      {/* Status */}
-      <span
-        className={cn(
-          "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold",
-          config.badge,
-        )}
-      >
-        <StatusIcon className="h-3.5 w-3.5" />
-        {config.label}
-      </span>
-
-      <ChevronRight className="h-4 w-4 text-muted-foreground/30 transition-transform group-hover:translate-x-0.5" />
-    </div>
-  );
-}
-
-function EmptySlate({
-  hasFilter,
-  onClear,
-  onBook,
-}: {
-  hasFilter: boolean;
-  onClear: () => void;
-  onBook: () => void;
-}) {
-  if (hasFilter) {
-    return (
-      <div className="flex flex-col items-center py-16 text-center">
-        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
-          <CalendarDays className="h-6 w-6 text-muted-foreground/40" />
-        </div>
-        <p className="mt-5 text-sm font-semibold text-muted-foreground">
-          No results
-        </p>
-        <p className="mt-1.5 max-w-xs text-sm text-muted-foreground/60">
-          No appointments match that filter.
-        </p>
-        <button
-          onClick={onClear}
-          className="mt-5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+      {/* Actions */}
+      <div className="flex items-center gap-2 shrink-0">
+        <Badge
+          variant="outline"
+          className={cn("text-xs font-medium", cfg.badge)}
         >
-          Clear filter
-        </button>
-      </div>
-    );
-  }
+          <span className={cn("mr-1.5 h-1.5 w-1.5 rounded-full", cfg.dot)} />
+          {cfg.label}
+        </Badge>
 
-  return (
-    <div className="flex flex-col items-center py-16 text-center">
-      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
-        <CalendarDays className="h-7 w-7 text-muted-foreground/40" />
+        {(appt.status === "PENDING" || appt.status === "CONFIRMED") && (
+          <button
+            onClick={() => onCancelAppointment(appt.id)}
+            title="Cancel appointment"
+            className="flex h-7 w-7 items-center justify-center rounded-md bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors"
+          >
+            <XCircle className="h-3.5 w-3.5" />
+          </button>
+        )}
+
+        {appt.status !== "COMPLETED" && appt.status !== "CANCELLED" && (
+          <AppointmentCallGate
+            appointmentId={appt.id}
+            fallbackName={doctorName}
+            sessionReady={sessionReady}
+          />
+        )}
       </div>
-      <p className="mt-5 text-base font-semibold text-muted-foreground">
-        No appointments yet
-      </p>
-      <p className="mt-1.5 max-w-xs text-sm text-muted-foreground/60">
-        You're all clear — or book a new appointment with one of your linked
-        doctors.
-      </p>
-      <Button onClick={onBook} className="mt-6 gap-2">
-        <Plus className="h-4 w-4" />
-        Book Appointment
-      </Button>
     </div>
   );
 }
 
-// ─── Enhanced Calendar ────────────────────────────────────────────────────────
-// Renders a calendar where:
-//   • Today is highlighted with a distinct amber/yellow background
-//   • Days with appointments get a vivid teal/primary background tile
+// ─── Appointment Calendar ─────────────────────────────────────────────────────
 
 function AppointmentCalendar({
   appointmentDates,
@@ -395,7 +238,6 @@ function AppointmentCalendar({
 }) {
   const today = new Date();
 
-  // Build a set of "YYYY-MM-DD" strings for fast lookup
   const apptDateSet = useMemo(() => {
     const s = new Set<string>();
     for (const d of appointmentDates) {
@@ -419,60 +261,37 @@ function AppointmentCalendar({
       mode="single"
       selected={selected}
       onSelect={(d) => {
-        if (!d) {
-          onSelect(undefined);
-          return;
-        }
-        if (selected && isSameDay(selected, d)) {
-          onSelect(undefined);
-          return;
-        }
+        if (!d) { onSelect(undefined); return; }
+        if (selected && isSameDay(selected, d)) { onSelect(undefined); return; }
         onSelect(d);
       }}
       components={{
-        DayButton: ({ day, modifiers, className, ...buttonProps }) => {
+        DayButton: ({ day, modifiers, ...buttonProps }) => {
           const date = day.date;
           const todayDay = isTodayDay(date);
           const apptDay = isApptDay(date);
           const selDay = isSelectedDay(date);
 
-          // DayButton renders inside the <td> react-day-picker already provides,
-          // so there is no button-inside-tr nesting issue.
           return (
             <button
               {...buttonProps}
               disabled={modifiers.disabled}
               className={cn(
-                // base — fill the cell
                 "relative mx-auto flex h-9 w-9 items-center justify-center rounded-lg text-sm font-medium transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                // disabled
                 "disabled:pointer-events-none disabled:opacity-30",
-                // today — warm amber tile
-                todayDay &&
-                  !selDay &&
+                todayDay && !selDay &&
                   "bg-amber-400/25 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300 font-bold ring-1 ring-amber-400/50",
-                // appointment day — primary tile
-                apptDay &&
-                  !todayDay &&
-                  !selDay &&
+                apptDay && !todayDay && !selDay &&
                   "bg-primary/15 text-primary font-semibold ring-1 ring-primary/30",
-                // appointment day that is also today
-                apptDay &&
-                  todayDay &&
-                  !selDay &&
+                apptDay && todayDay && !selDay &&
                   "bg-amber-400/30 text-amber-700 dark:bg-amber-500/25 dark:text-amber-300 font-bold ring-2 ring-primary/40",
-                // selected — solid primary
                 selDay &&
                   "bg-primary text-primary-foreground font-bold shadow-md ring-2 ring-primary/50",
-                // plain day hover
-                !todayDay &&
-                  !apptDay &&
-                  !selDay &&
+                !todayDay && !apptDay && !selDay &&
                   "hover:bg-muted hover:text-foreground",
               )}
             >
               {date.getDate()}
-              {/* Accent pip for appointment days that aren't selected */}
               {apptDay && !selDay && (
                 <span className="absolute bottom-1 left-1/2 -translate-x-1/2 h-1 w-1 rounded-full bg-primary opacity-70" />
               )}
@@ -485,20 +304,78 @@ function AppointmentCalendar({
   );
 }
 
-// ─── Main Component ───────────────────────────────────────────────────────────
+// ─── Empty state ──────────────────────────────────────────────────────────────
+
+function EmptyState({
+  hasFilter,
+  onClear,
+  onBook,
+}: {
+  hasFilter: boolean;
+  onClear: () => void;
+  onBook: () => void;
+}) {
+  if (hasFilter) {
+    return (
+      <CardContent className="flex flex-col items-center py-20 text-center">
+        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
+          <Inbox className="h-6 w-6 text-muted-foreground/40" />
+        </div>
+        <p className="mt-5 text-base font-medium text-muted-foreground">
+          No results
+        </p>
+        <p className="mt-1.5 max-w-xs text-sm text-muted-foreground/60">
+          No appointments match that filter.
+        </p>
+        <button
+          onClick={onClear}
+          className="mt-3 text-xs text-muted-foreground hover:text-foreground transition-colors"
+        >
+          Clear filter
+        </button>
+      </CardContent>
+    );
+  }
+
+  return (
+    <CardContent className="flex flex-col items-center py-20 text-center">
+      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
+        <Inbox className="h-6 w-6 text-muted-foreground/40" />
+      </div>
+      <p className="mt-5 text-base font-medium text-muted-foreground">
+        No appointments yet
+      </p>
+      <p className="mt-1.5 max-w-xs text-sm text-muted-foreground/60">
+        Book a visit with one of your linked doctors.
+      </p>
+      <Button onClick={onBook} size="sm" className="mt-6 gap-2">
+        <Plus className="h-4 w-4" />
+        Book Appointment
+      </Button>
+    </CardContent>
+  );
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
 
 export function AppointmentsView({
   upcoming,
   history,
   doctors,
   onBookAppointment,
+  onCancelAppointment,
   onRefresh,
+  sessionReady = false,
 }: AppointmentsViewProps) {
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
+  const [filter, setFilter] = useState<StatusFilter>("ALL");
   const [calendarDate, setCalendarDate] = useState<Date | undefined>(undefined);
+  const [refreshing, setRefreshing] = useState(false);
 
-  // All appointments merged, upcoming first then history (newest last)
-  // Build doctor_id → display name lookup from already-loaded doctors list
+  const allAppointments = useMemo(
+    () => [...upcoming, ...history],
+    [upcoming, history],
+  );
+
   const doctorNameMap = useMemo(() => {
     const map = new Map<string, string>();
     for (const d of doctors) {
@@ -507,69 +384,73 @@ export function AppointmentsView({
     return map;
   }, [doctors]);
 
-  const allAppointments = useMemo(
-    () => [...upcoming, ...history],
-    [upcoming, history],
-  );
-
   const appointmentDates = useMemo(
     () => allAppointments.map((a) => new Date(a.scheduled_time)),
     [allAppointments],
   );
 
-  // Flat sorted list: future/active first (asc), past last (desc within past)
-  const sortedAll = useMemo(() => {
+  const counts: Record<StatusFilter, number> = useMemo(
+    () => ({
+      ALL: allAppointments.length,
+      PENDING: allAppointments.filter((a) => a.status === "PENDING").length,
+      CONFIRMED: allAppointments.filter((a) => a.status === "CONFIRMED").length,
+      COMPLETED: allAppointments.filter((a) => a.status === "COMPLETED").length,
+      CANCELLED: allAppointments.filter((a) => a.status === "CANCELLED").length,
+    }),
+    [allAppointments],
+  );
+
+  const todayCount = useMemo(
+    () => allAppointments.filter((a) => isToday(a.scheduled_time)).length,
+    [allAppointments],
+  );
+
+  const sorted = useMemo(() => {
     const now = new Date();
-    const future = [...upcoming].sort(
-      (a, b) =>
-        new Date(a.scheduled_time).getTime() -
-        new Date(b.scheduled_time).getTime(),
-    );
-    const past = [...history].sort(
-      (a, b) =>
-        new Date(b.scheduled_time).getTime() -
-        new Date(a.scheduled_time).getTime(),
-    );
-    // Partition upcoming into truly future vs already-past (edge case)
-    const futureSafe = future.filter(
+    const active = allAppointments.filter(
       (a) =>
         new Date(a.scheduled_time) >= now ||
         a.status === "PENDING" ||
         a.status === "CONFIRMED",
     );
-    return [...futureSafe, ...past];
-  }, [upcoming, history]);
+    const past = allAppointments.filter(
+      (a) =>
+        new Date(a.scheduled_time) < now &&
+        a.status !== "PENDING" &&
+        a.status !== "CONFIRMED",
+    );
+    active.sort(
+      (a, b) =>
+        new Date(a.scheduled_time).getTime() -
+        new Date(b.scheduled_time).getTime(),
+    );
+    past.sort(
+      (a, b) =>
+        new Date(b.scheduled_time).getTime() -
+        new Date(a.scheduled_time).getTime(),
+    );
+    return [...active, ...past];
+  }, [allAppointments]);
 
-  // Filter helpers
-  const filteredAll = useMemo(() => {
-    let result = sortedAll;
-    if (statusFilter !== "ALL") {
-      result = result.filter((a) => a.status === statusFilter);
-    }
-    if (calendarDate) {
+  const filtered = useMemo(() => {
+    let result = sorted;
+    if (filter !== "ALL") result = result.filter((a) => a.status === filter);
+    if (calendarDate)
       result = result.filter((a) =>
         isSameDay(new Date(a.scheduled_time), calendarDate),
       );
-    }
     return result;
-  }, [sortedAll, statusFilter, calendarDate]);
+  }, [sorted, filter, calendarDate]);
 
-  const hasFilter = statusFilter !== "ALL" || calendarDate !== undefined;
+  const hasFilter = filter !== "ALL" || calendarDate !== undefined;
 
-  function clearFilter() {
-    setStatusFilter("ALL");
-    setCalendarDate(undefined);
-  }
+  const pagination = usePagination(filtered, { pageSize: 10 });
 
-  const pagination = usePagination(filteredAll, { pageSize: 10 });
-
-  // Reset to page 1 whenever the filter or calendar selection changes
   useEffect(() => {
     pagination.reset();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statusFilter, calendarDate]);
+  }, [filter, calendarDate]);
 
-  // Adherence rate
   const completedCount = useMemo(
     () => history.filter((a) => a.status === "COMPLETED").length,
     [history],
@@ -584,27 +465,64 @@ export function AppointmentsView({
     return Math.round((completedCount / total) * 100);
   }, [completedCount, cancelledCount]);
 
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await onRefresh();
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
-      {/* ── Page Header ── */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      {/* Page header */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground">
             Appointments
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p className="mt-1 text-sm text-foreground/60">
             Manage your visits, track history, and book new consultations.
           </p>
         </div>
-        <Button onClick={onBookAppointment} className="w-fit gap-2 shadow-sm">
-          <Plus className="h-4 w-4" />
-          Book Appointment
-        </Button>
+
+        <div className="flex items-center gap-2 self-start">
+          {todayCount > 0 && (
+            <Badge
+              variant="outline"
+              className="h-8 gap-2 px-3 text-xs font-semibold border-amber-500/30 text-amber-600 bg-amber-500/5 dark:text-amber-400"
+            >
+              <Clock className="h-3.5 w-3.5" />
+              {todayCount} today
+            </Badge>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="gap-2"
+          >
+            <RefreshCw
+              className={cn("h-3.5 w-3.5", refreshing && "animate-spin")}
+            />
+            Refresh
+          </Button>
+          <Button
+            onClick={onBookAppointment}
+            size="sm"
+            className="gap-2 shadow-sm"
+          >
+            <Plus className="h-4 w-4" />
+            Book Appointment
+          </Button>
+        </div>
       </div>
 
-      {/* ── Main layout: Calendar + List ── */}
+      {/* Two-column layout */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[296px_1fr]">
-        {/* ── Left: Calendar sidebar ── */}
+        {/* Left: Calendar sidebar */}
         <div className="space-y-5">
           <Card className="overflow-hidden py-0 shadow-sm">
             <CardHeader className="border-b border-border px-5 py-4">
@@ -624,21 +542,15 @@ export function AppointmentsView({
               <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-border pt-3 px-1">
                 <div className="flex items-center gap-1.5">
                   <span className="h-3 w-3 rounded-sm bg-amber-400/30 ring-1 ring-amber-400/50" />
-                  <span className="text-[11px] text-muted-foreground">
-                    Today
-                  </span>
+                  <span className="text-[11px] text-muted-foreground">Today</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <span className="h-3 w-3 rounded-sm bg-primary/15 ring-1 ring-primary/30" />
-                  <span className="text-[11px] text-muted-foreground">
-                    Has appointment
-                  </span>
+                  <span className="text-[11px] text-muted-foreground">Has appointment</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <span className="h-3 w-3 rounded-sm bg-primary" />
-                  <span className="text-[11px] text-muted-foreground">
-                    Selected
-                  </span>
+                  <span className="text-[11px] text-muted-foreground">Selected</span>
                 </div>
               </div>
 
@@ -661,8 +573,8 @@ export function AppointmentsView({
                     </button>
                   </div>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    {filteredAll.length} appointment
-                    {filteredAll.length !== 1 ? "s" : ""} on this day
+                    {filtered.length} appointment
+                    {filtered.length !== 1 ? "s" : ""} on this day
                   </p>
                 </div>
               )}
@@ -716,45 +628,41 @@ export function AppointmentsView({
           </Card>
         </div>
 
-        {/* ── Right: Filter bar + Flat list ── */}
-        <div className="min-w-0 space-y-4">
+        {/* Right: Filter pills + list */}
+        <div className="space-y-4 min-w-0">
           {/* Filter pills */}
           <div className="flex flex-wrap items-center gap-2">
-            {(
-              ["ALL", "PENDING", "CONFIRMED", "COMPLETED", "CANCELLED"] as const
-            ).map((s) => {
-              const active = statusFilter === s;
-              const count =
-                s === "ALL"
-                  ? allAppointments.length
-                  : allAppointments.filter((a) => a.status === s).length;
+            {FILTER_OPTIONS.map(({ value, label }) => {
+              const active = filter === value;
               return (
                 <button
-                  key={s}
-                  onClick={() => setStatusFilter(s)}
+                  key={value}
+                  onClick={() => setFilter(value)}
                   className={cn(
                     "inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-xs font-medium transition-all",
                     active
-                      ? "border-primary/40 bg-primary/10 text-primary shadow-sm"
-                      : "border-border bg-background text-muted-foreground hover:border-foreground/20 hover:text-foreground",
+                      ? "border-primary/50 bg-primary/15 text-primary shadow-sm"
+                      : "border-border bg-card text-foreground/70 hover:border-foreground/30 hover:text-foreground hover:bg-muted/50",
                   )}
                 >
-                  {FILTER_LABELS[s]}
+                  {label}
                   <span
                     className={cn(
                       "tabular-nums text-[10px]",
-                      active ? "text-primary/70" : "text-muted-foreground/60",
+                      active ? "text-primary/80" : "text-foreground/50",
                     )}
                   >
-                    {count}
+                    {counts[value]}
                   </span>
                 </button>
               );
             })}
-
             {hasFilter && (
               <button
-                onClick={clearFilter}
+                onClick={() => {
+                  setFilter("ALL");
+                  setCalendarDate(undefined);
+                }}
                 className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
               >
                 <XCircle className="h-3 w-3" />
@@ -763,40 +671,65 @@ export function AppointmentsView({
             )}
           </div>
 
-          {/* Flat chronological list */}
-          {filteredAll.length === 0 ? (
-            <EmptySlate
-              hasFilter={hasFilter}
-              onClear={clearFilter}
-              onBook={onBookAppointment}
-            />
-          ) : (
-            <>
-              <div className="pt-1">
-                {pagination.pageItems.map((appt, i) => (
-                  <AppointmentTimelineCard
-                    key={appt.id}
-                    appt={appt}
-                    isLast={i === pagination.pageItems.length - 1}
-                    doctorName={
-                      doctorNameMap.get(appt.doctor_id) ?? "Unknown Doctor"
-                    }
-                  />
-                ))}
+          {/* Appointments card */}
+          <Card className="gap-0 py-0">
+            <CardHeader className="flex flex-row items-center justify-between border-b border-border px-6 py-4">
+              <div className="flex items-center gap-2">
+                <CalendarDays className="h-4 w-4 text-secondary" />
+                <CardTitle className="text-base font-semibold">
+                  {filter === "ALL"
+                    ? "All Appointments"
+                    : `${filter.charAt(0) + filter.slice(1).toLowerCase()} Appointments`}
+                </CardTitle>
               </div>
-              <Pagination
-                page={pagination.page}
-                totalPages={pagination.totalPages}
-                totalItems={pagination.totalItems}
-                pageSize={pagination.pageSize}
-                hasNext={pagination.hasNext}
-                hasPrev={pagination.hasPrev}
-                onNext={pagination.next}
-                onPrev={pagination.prev}
-                onGoTo={pagination.goTo}
+              <Badge
+                variant="outline"
+                className="h-6 px-2.5 text-xs font-medium"
+              >
+                {filtered.length} total
+              </Badge>
+            </CardHeader>
+
+            {filtered.length === 0 ? (
+              <EmptyState
+                hasFilter={hasFilter}
+                onClear={() => {
+                  setFilter("ALL");
+                  setCalendarDate(undefined);
+                }}
+                onBook={onBookAppointment}
               />
-            </>
-          )}
+            ) : (
+              <>
+                <div className="divide-y divide-border">
+                  {pagination.pageItems.map((appt) => (
+                    <AppointmentRow
+                      key={appt.id}
+                      appt={appt}
+                      doctorName={
+                        doctorNameMap.get(appt.doctor_id) ?? "Unknown Doctor"
+                      }
+                      onCancelAppointment={onCancelAppointment}
+                      sessionReady={sessionReady}
+                    />
+                  ))}
+                </div>
+                <div className="px-6">
+                  <Pagination
+                    page={pagination.page}
+                    totalPages={pagination.totalPages}
+                    totalItems={pagination.totalItems}
+                    pageSize={pagination.pageSize}
+                    hasNext={pagination.hasNext}
+                    hasPrev={pagination.hasPrev}
+                    onNext={pagination.next}
+                    onPrev={pagination.prev}
+                    onGoTo={pagination.goTo}
+                  />
+                </div>
+              </>
+            )}
+          </Card>
         </div>
       </div>
     </div>
