@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useAuth } from "@/components/providers/SessionProvider";
 import Link from "next/link";
+import Image from "next/image";
 import {
   Activity,
   LogOut,
@@ -63,9 +64,14 @@ export default function Navbar() {
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2 group">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-white transition-transform group-hover:scale-105">
-            <Activity className="h-5 w-5" />
-          </div>
+          <Image
+            src="/logo.png"
+            alt="MedIntel"
+            width={36}
+            height={36}
+            className="h-9 w-9 rounded-lg object-contain transition-transform group-hover:scale-105"
+            priority
+          />
           <span className="text-xl font-bold tracking-tight text-foreground">
             Med<span className="text-primary">Intel</span>
           </span>

@@ -20,7 +20,11 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "MedIntel — AI-Powered Healthcare Intelligence",
+  metadataBase: new URL("https://mymedintel.vercel.app"),
+  title: {
+    default: "MedIntel — AI-Powered Healthcare Intelligence",
+    template: "%s | MedIntel",
+  },
   description:
     "Smarter diagnostics, better outcomes. MedIntel combines artificial intelligence with clinical expertise to transform how patients and doctors interact with health data.",
   keywords: [
@@ -31,6 +35,41 @@ export const metadata: Metadata = {
     "doctor portal",
     "health records",
   ],
+  alternates: {
+    canonical: "/",
+  },
+  icons: {
+    icon: [
+      { url: "/logo.png", sizes: "32x32", type: "image/png" },
+      { url: "/logo.png", sizes: "192x192", type: "image/png" },
+      { url: "/logo.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/logo.png", sizes: "180x180", type: "image/png" }],
+    shortcut: ["/logo.png"],
+  },
+  openGraph: {
+    type: "website",
+    url: "https://mymedintel.vercel.app",
+    siteName: "MedIntel",
+    title: "MedIntel — AI-Powered Healthcare Intelligence",
+    description:
+      "Smarter diagnostics, better outcomes. MedIntel combines artificial intelligence with clinical expertise to transform how patients and doctors interact with health data.",
+    images: [
+      {
+        url: "/og.webp",
+        width: 1200,
+        height: 630,
+        alt: "MedIntel platform preview",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "MedIntel — AI-Powered Healthcare Intelligence",
+    description:
+      "Smarter diagnostics, better outcomes. MedIntel combines artificial intelligence with clinical expertise to transform how patients and doctors interact with health data.",
+    images: ["/og.webp"],
+  },
 };
 
 export default function RootLayout({

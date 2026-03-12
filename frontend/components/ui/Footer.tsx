@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { Activity, Shield } from "lucide-react";
+import Image from "next/image";
+import { Shield } from "lucide-react";
 
 export default function Footer() {
   return (
@@ -9,9 +10,14 @@ export default function Footer() {
           {/* Brand */}
           <div className="space-y-3">
             <Link href="/" className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-white">
-                <Activity className="h-4 w-4" />
-              </div>
+              <Image
+                src="/logo.png"
+                alt="MedIntel"
+                width={32}
+                height={32}
+                className="h-8 w-8 rounded-lg object-contain"
+                priority
+              />
               <span className="text-lg font-bold tracking-tight text-foreground">
                 Med<span className="text-primary">Intel</span>
               </span>

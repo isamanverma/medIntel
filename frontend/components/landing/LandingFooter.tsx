@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { motion, useInView } from "motion/react";
 import { useRef } from "react";
-import { Activity } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 
@@ -65,9 +65,14 @@ export default function LandingFooter() {
               href="/"
               className="group mb-4 inline-flex items-center gap-2.5"
             >
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary shadow-sm shadow-primary/30 transition-transform duration-200 group-hover:scale-105">
-                <Activity className="h-4 w-4 text-primary-foreground" />
-              </div>
+              <Image
+                src="/logo.png"
+                alt="MedIntel"
+                width={32}
+                height={32}
+                className="h-8 w-8 rounded-lg object-contain transition-transform duration-200 group-hover:scale-105"
+                priority
+              />
               <span className="text-base font-bold tracking-tight text-foreground">
                 Med<span className="text-primary">Intel</span>
               </span>

@@ -3,8 +3,8 @@
 import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import {
-  Activity,
   Eye,
   EyeOff,
   Shield,
@@ -65,9 +65,14 @@ function AdminLoginForm() {
         {/* Logo — identical to patient/doctor login */}
         <div className="mb-8 text-center">
           <Link href="/" className="inline-flex items-center gap-2">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-              <Activity className="h-5 w-5" />
-            </div>
+            <Image
+              src="/logo.png"
+              alt="MedIntel"
+              width={40}
+              height={40}
+              className="h-10 w-10 rounded-xl object-contain"
+              priority
+            />
             <span className="text-2xl font-bold tracking-tight text-foreground">
               Med<span className="text-primary">Intel</span>
             </span>

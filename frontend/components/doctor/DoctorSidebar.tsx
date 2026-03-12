@@ -1,9 +1,9 @@
 "use client";
 
 import * as React from "react";
+import Image from "next/image";
 import { cn } from "@/lib/utils";
 import {
-  Activity,
   Calendar,
   MessageSquare,
   LayoutDashboard,
@@ -235,8 +235,15 @@ export function DoctorSidebar({
               className="cursor-default hover:bg-transparent active:bg-transparent focus-visible:ring-0 pointer-events-none"
             >
               {/* Logo mark */}
-              <div className="flex aspect-square size-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
-                <Activity className="size-5" />
+              <div className="flex aspect-square size-9 shrink-0 items-center justify-center rounded-lg bg-sidebar-accent/70 shadow-sm ring-1 ring-sidebar-border">
+                <Image
+                  src="/logo.png"
+                  alt="MedIntel"
+                  width={28}
+                  height={28}
+                  className="h-7 w-7 object-contain"
+                  priority
+                />
               </div>
 
               {/* Word-mark */}
