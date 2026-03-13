@@ -49,7 +49,7 @@ export interface UseChatPollingOptions {
    * Stored in a ref internally, so changing this reference does not restart
    * the polling cycle.
    */
-  onNewMessages: (messages: ChatMessage[]) => void;
+  onNewMessages: (roomId: string, messages: ChatMessage[]) => void;
 
   /**
    * Interval between the end of one poll and the start of the next.
@@ -82,6 +82,13 @@ export function useChatPolling({
   useEffect(() => {
     onNewMessagesRef.current = onNewMessages;
   }, [onNewMessages]);
+
+  // Track the current active room to drop stale in-flight responses that
+  // belong to a previously active room.
+  const activeRoomRef = useRef<string | null | undefined>(roomId);
+  useEffect(() => {
+    activeRoomRef.current = roomId;
+  }, [roomId]);
 
   // Whether the tab is currently visible.  Start as true — if the hook
   // mounts while the tab is hidden the visibilitychange listener will
@@ -124,8 +131,12 @@ export function useChatPolling({
       const since = sinceRef.current ?? new Date(0).toISOString();
       const fresh = await getChatMessagesSince(roomId, since);
 
-      if (!cancelledRef.current && fresh.length > 0) {
-        onNewMessagesRef.current(fresh);
+      if (
+        !cancelledRef.current &&
+        fresh.length > 0 &&
+        activeRoomRef.current === roomId
+      ) {
+        onNewMessagesRef.current(roomId, fresh);
       }
     } catch {
       // Silently swallow poll errors.  The user keeps seeing their last

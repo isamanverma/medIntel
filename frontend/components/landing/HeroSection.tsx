@@ -78,11 +78,15 @@ function ArcGauge({
     return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
   }
 
+  function fmt(n: number) {
+    return n.toFixed(6);
+  }
+
   function describeArc(start: number, end: number) {
     const s = polarToCartesian(start);
     const e = polarToCartesian(end);
     const large = end - start > 180 ? 1 : 0;
-    return `M ${s.x} ${s.y} A ${r} ${r} 0 ${large} 1 ${e.x} ${e.y}`;
+    return `M ${fmt(s.x)} ${fmt(s.y)} A ${fmt(r)} ${fmt(r)} 0 ${large} 1 ${fmt(e.x)} ${fmt(e.y)}`;
   }
 
   const trackPath = describeArc(startAngle, startAngle + sweepAngle);
