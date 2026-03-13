@@ -650,6 +650,28 @@ class TestGetMessages:
 @pytest.mark.asyncio
 class TestPollingDelta:
 
+    async def test_since_is_strictly_room_scoped(self, client):
+        doc_tok, _ = await _signup_login(client, "DOCTOR")
+        _, pat1_id = await _signup_login(client, "PATIENT", "scope1")
+        _, pat2_id = await _signup_login(client, "PATIENT", "scope2")
+
+        room_a = await _create_direct_room(client, doc_tok, pat1_id)
+        room_b = await _create_direct_room(client, doc_tok, pat2_id)
+
+        anchor = await _send(client, doc_tok, room_a["id"], "room-a-anchor")
+        await _send(client, doc_tok, room_a["id"], "room-a-new")
+        await _send(client, doc_tok, room_b["id"], "room-b-new")
+
+        res = await client.get(
+            f"/api/chat/rooms/{room_a['id']}/messages?since={anchor['created_at']}",
+            headers=_auth(doc_tok),
+        )
+        assert res.status_code == 200
+        msgs = res.json()
+        contents = [m["content"] for m in msgs]
+        assert "room-a-new" in contents
+        assert "room-b-new" not in contents
+
     async def test_since_returns_only_newer_messages(self, client):
         doc_tok, _ = await _signup_login(client, "DOCTOR")
         pat_tok, pat_id = await _signup_login(client, "PATIENT")

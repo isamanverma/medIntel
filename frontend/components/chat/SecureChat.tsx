@@ -139,7 +139,9 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
       };
 
     case "MESSAGES_LOADED": {
-      const reversed = [...action.messages];
+      const reversed = action.messages.filter(
+        (m) => m.room_id === action.roomId,
+      );
       return {
         ...state,
         messagesByRoom: { ...state.messagesByRoom, [action.roomId]: reversed },
@@ -155,7 +157,9 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
     case "MESSAGES_PREPENDED": {
       const existing = state.messagesByRoom[action.roomId] ?? [];
       const existingIds = new Set(existing.map((m) => m.id));
-      const fresh = action.messages.filter((m) => !existingIds.has(m.id));
+      const fresh = action.messages.filter(
+        (m) => m.room_id === action.roomId && !existingIds.has(m.id),
+      );
       return {
         ...state,
         messagesByRoom: {
@@ -176,7 +180,9 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
     case "MESSAGES_APPENDED": {
       const existing = state.messagesByRoom[action.roomId] ?? [];
       const existingIds = new Set(existing.map((m) => m.id));
-      const fresh = action.messages.filter((m) => !existingIds.has(m.id));
+      const fresh = action.messages.filter(
+        (m) => m.room_id === action.roomId && !existingIds.has(m.id),
+      );
       if (fresh.length === 0) return state;
       return {
         ...state,
@@ -494,11 +500,10 @@ export function SecureChat({
   // ── Polling ───────────────────────────────────────────────────────────────
 
   const handleNewMessages = useCallback(
-    (messages: ChatMessage[]) => {
-      if (!messages.length || !state.activeRoomId) return;
-      const roomId = state.activeRoomId;
+    (roomId: string, messages: ChatMessage[]) => {
+      if (!messages.length) return;
       dispatch({ type: "MESSAGES_APPENDED", roomId, messages });
-      if (isAtBottomRef.current) {
+      if (state.activeRoomId === roomId && isAtBottomRef.current) {
         markRoomRead(roomId).catch(() => {});
         dispatch({ type: "ROOM_MARKED_READ", roomId });
       }

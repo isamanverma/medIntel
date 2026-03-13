@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 /**
  * Catch-all API proxy route.
  *
@@ -71,24 +74,31 @@ async function handler(
             method: request.method,
             headers,
             body,
+            cache: "no-store",
+            next: { revalidate: 0 },
         });
+
+        const contentType = backendRes.headers.get("Content-Type") ?? "application/json";
+        const responseHeaders: Record<string, string> = {
+            "Content-Type": contentType,
+            "Cache-Control": "no-store, no-cache, must-revalidate, private",
+            Pragma: "no-cache",
+            Expires: "0",
+            Vary: "Authorization, Cookie",
+        };
 
         // 204/304 cannot include a response body in NextResponse constructor.
         if (backendRes.status === 204 || backendRes.status === 304) {
             return new NextResponse(null, {
                 status: backendRes.status,
-                headers: {
-                    "Content-Type": backendRes.headers.get("Content-Type") ?? "text/plain",
-                },
+                headers: responseHeaders,
             });
         }
 
         const data = await backendRes.text();
         return new NextResponse(data, {
             status: backendRes.status,
-            headers: {
-                "Content-Type": backendRes.headers.get("Content-Type") ?? "application/json",
-            },
+            headers: responseHeaders,
         });
     } catch (error) {
         console.error(`[API Proxy] Error proxying ${request.method} ${backendPath}:`, error);

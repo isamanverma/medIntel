@@ -131,8 +131,11 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(url, {
     ...options,
     credentials: "include", // ← sends the HttpOnly cookie automatically
+    cache: "no-store",
     headers: {
       "Content-Type": "application/json",
+      "Cache-Control": "no-store",
+      Pragma: "no-cache",
       ...options.headers,
     },
   });
