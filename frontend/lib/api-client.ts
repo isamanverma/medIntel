@@ -77,6 +77,8 @@ import type {
   MappingPatient,
   MedicalReport,
   PatientDiscoveryResult,
+  PatientMetricEntry,
+  PatientMetricType,
   PatientProfile,
 } from "@/lib/types";
 import type {
@@ -256,6 +258,18 @@ export interface DiscoverPatientsParams {
   limit?: number;
 }
 
+export interface CreatePatientMetricEntryData {
+  metric_type: PatientMetricType;
+  value: string;
+  recorded_at?: string;
+  notes?: string;
+}
+
+export interface ListPatientMetricsParams {
+  metric_type?: PatientMetricType;
+  limit?: number;
+}
+
 export async function discoverPatients(
   params: DiscoverPatientsParams = {},
 ): Promise<PatientDiscoveryResult[]> {
@@ -282,6 +296,27 @@ export async function generateConditionTags(
       method: "POST",
       body: JSON.stringify({ description }),
     },
+  );
+}
+
+export async function createPatientMetricEntry(
+  data: CreatePatientMetricEntryData,
+): Promise<PatientMetricEntry> {
+  return request<PatientMetricEntry>("/api/profiles/patient/metrics", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function listPatientMetricEntries(
+  params: ListPatientMetricsParams = {},
+): Promise<PatientMetricEntry[]> {
+  const qs = new URLSearchParams();
+  if (params.metric_type) qs.set("metric_type", params.metric_type);
+  if (params.limit !== undefined) qs.set("limit", String(params.limit));
+  const query = qs.toString();
+  return request<PatientMetricEntry[]>(
+    `/api/profiles/patient/metrics${query ? `?${query}` : ""}`,
   );
 }
 

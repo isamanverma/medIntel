@@ -35,7 +35,11 @@ from datetime import datetime, timezone, timedelta
 import pytest
 from httpx import AsyncClient, ASGITransport
 
+import app.db.engine as engine_module
 from app.main import app
+from app.models.enums import UserRole
+from app.models.user import UserCreate
+from app.services.auth_service import create_user
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -57,6 +61,19 @@ async def _signup_login(
     """
     tag = _uid() + suffix
     email = f"chat_{role.lower()}_{tag}@test.com"
+    if role == "ADMIN":
+        async with engine_module.async_session_factory() as session:
+            token = await create_user(
+                session,
+                data=UserCreate(
+                    name=f"Test {role} {tag}",
+                    email=email,
+                    password="Password123!",
+                    role=UserRole.ADMIN,
+                ),
+            )
+        return token.access_token, str(token.user.id)
+
     await client.post(
         "/api/auth/signup",
         json={"name": f"Test {role} {tag}", "email": email, "password": "Password123!", "role": role},

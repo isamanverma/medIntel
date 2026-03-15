@@ -105,6 +105,26 @@ export interface PatientProfile {
   created_at: string;
 }
 
+export type PatientMetricType =
+  | "blood_pressure"
+  | "blood_sugar"
+  | "weight"
+  | "heart_rate"
+  | "temperature"
+  | "oxygen_saturation";
+
+export interface PatientMetricEntry {
+  id: string;
+  patient_id: string;
+  metric_type: PatientMetricType;
+  value: string;
+  unit: string;
+  numeric_value: number | null;
+  notes: string | null;
+  recorded_at: string;
+  created_at: string;
+}
+
 export interface DoctorProfile {
   id: string;
   user_id: string;

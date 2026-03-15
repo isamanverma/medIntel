@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from app.models.insight import AgentInsight
     from app.models.referral import Referral
     from app.models.care_team import CareTeam, CareTeamMember
+    from app.models.patient_metric import PatientMetricEntry
 
 
 class PatientProfile(SQLModel, table=True):
@@ -82,6 +83,7 @@ class PatientProfile(SQLModel, table=True):
     agent_insights: List["AgentInsight"] = Relationship(back_populates="patient")
     referrals: List["Referral"] = Relationship(back_populates="patient")
     care_teams: List["CareTeam"] = Relationship(back_populates="patient")
+    metric_entries: List["PatientMetricEntry"] = Relationship(back_populates="patient")
 
 
 class DoctorProfile(SQLModel, table=True):

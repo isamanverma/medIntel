@@ -5,6 +5,8 @@ import {
   HeartPulse,
   Copy,
   Edit2,
+  Plus,
+  TrendingUp,
   User,
   Phone,
   MapPin,
@@ -22,7 +24,12 @@ import {
   Check,
   Ban,
 } from "lucide-react";
-import type { PatientProfile, UserPublic } from "@/lib/types";
+import type {
+  PatientMetricEntry,
+  PatientMetricType,
+  PatientProfile,
+  UserPublic,
+} from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/Toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -31,7 +38,9 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import {
+  createPatientMetricEntry,
   generateConditionTags,
+  listPatientMetricEntries,
   updatePatientProfile,
   createPatientProfile,
 } from "@/lib/api-client";
@@ -71,6 +80,54 @@ interface FormState {
 }
 
 const BLOOD_GROUPS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
+
+const METRIC_OPTIONS: Array<{
+  type: PatientMetricType;
+  label: string;
+  unit: string;
+  placeholder: string;
+}> = [
+  {
+    type: "blood_pressure",
+    label: "Blood Pressure",
+    unit: "mmHg",
+    placeholder: "120/80",
+  },
+  {
+    type: "blood_sugar",
+    label: "Blood Sugar",
+    unit: "mg/dL",
+    placeholder: "110",
+  },
+  {
+    type: "weight",
+    label: "Weight",
+    unit: "kg",
+    placeholder: "72.5",
+  },
+  {
+    type: "heart_rate",
+    label: "Heart Rate",
+    unit: "bpm",
+    placeholder: "72",
+  },
+  {
+    type: "temperature",
+    label: "Temperature",
+    unit: "C",
+    placeholder: "36.8",
+  },
+  {
+    type: "oxygen_saturation",
+    label: "SpO2",
+    unit: "%",
+    placeholder: "98",
+  },
+];
+
+function metricLabel(metricType: PatientMetricType): string {
+  return METRIC_OPTIONS.find((opt) => opt.type === metricType)?.label ?? metricType;
+}
 
 function profileToForm(p: PatientProfile): FormState {
   return {
@@ -376,6 +433,71 @@ function BmiWidget({
   );
 }
 
+function MetricTrendChart({
+  entries,
+  unit,
+}: {
+  entries: PatientMetricEntry[];
+  unit: string;
+}) {
+  const numericEntries = entries
+    .filter((entry) => entry.numeric_value !== null)
+    .slice(0, 12)
+    .reverse();
+
+  if (numericEntries.length < 2) {
+    return (
+      <div className="rounded-lg border border-dashed border-border bg-muted/30 px-4 py-5 text-center">
+        <p className="text-xs text-muted-foreground">
+          Add at least 2 values to see a trend chart.
+        </p>
+      </div>
+    );
+  }
+
+  const values = numericEntries.map((entry) => entry.numeric_value as number);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const span = Math.max(max - min, 1);
+
+  const points = numericEntries
+    .map((entry, idx) => {
+      const x = (idx / (numericEntries.length - 1)) * 100;
+      const y = 100 - (((entry.numeric_value as number) - min) / span) * 100;
+      return `${x},${y}`;
+    })
+    .join(" ");
+
+  return (
+    <div className="space-y-2">
+      <div className="relative h-32 rounded-lg border border-border bg-muted/20 p-2">
+        <svg
+          viewBox="0 0 100 100"
+          preserveAspectRatio="none"
+          className="h-full w-full"
+          aria-label="Metric trend chart"
+        >
+          <polyline
+            points={points}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            className="text-primary"
+          />
+        </svg>
+      </div>
+      <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+        <span>
+          Min: {min.toFixed(1)} {unit}
+        </span>
+        <span>
+          Max: {max.toFixed(1)} {unit}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 // ─── AI Condition Tags card (always inline, unchanged) ────────────────────────
 
 function AiConditionTagsCard({
@@ -654,6 +776,14 @@ export function ProfileView({
     profile ? profileToForm(profile) : profileToForm({} as PatientProfile),
   );
   const [submitting, setSubmitting] = useState(false);
+  const [metrics, setMetrics] = useState<PatientMetricEntry[]>([]);
+  const [metricsLoading, setMetricsLoading] = useState(false);
+  const [metricSubmitting, setMetricSubmitting] = useState(false);
+  const [metricType, setMetricType] = useState<PatientMetricType>("blood_pressure");
+  const [metricValue, setMetricValue] = useState("");
+  const [metricRecordedAt, setMetricRecordedAt] = useState(
+    new Date().toISOString().slice(0, 16),
+  );
 
   // Keep form in sync when profile loads or changes externally
   useEffect(() => {
@@ -661,6 +791,26 @@ export function ProfileView({
       setForm(profileToForm(profile));
     }
   }, [profile, editing]);
+
+  const fetchMetrics = useCallback(async () => {
+    if (!profile) {
+      setMetrics([]);
+      return;
+    }
+    setMetricsLoading(true);
+    try {
+      const entries = await listPatientMetricEntries({ limit: 120 });
+      setMetrics(entries);
+    } catch {
+      // Profile can render without metrics history if the request fails.
+    } finally {
+      setMetricsLoading(false);
+    }
+  }, [profile]);
+
+  useEffect(() => {
+    fetchMetrics();
+  }, [fetchMetrics]);
 
   const patch = useCallback(
     (p: Partial<FormState>) => setForm((prev) => ({ ...prev, ...p })),
@@ -716,6 +866,48 @@ export function ProfileView({
     },
     [form, profile, onProfileUpdated, toast],
   );
+
+  const handleAddMetric = useCallback(async () => {
+    const trimmed = metricValue.trim();
+    if (!trimmed) {
+      toast("Please enter a value before saving.", "error");
+      return;
+    }
+    setMetricSubmitting(true);
+    try {
+      const created = await createPatientMetricEntry({
+        metric_type: metricType,
+        value: trimmed,
+        recorded_at: new Date(metricRecordedAt).toISOString(),
+      });
+      setMetrics((prev) => [created, ...prev]);
+      setMetricValue("");
+      setMetricRecordedAt(new Date().toISOString().slice(0, 16));
+
+      if (profile && (metricType === "blood_pressure" || metricType === "weight")) {
+        const updated = await updatePatientProfile(
+          metricType === "blood_pressure"
+            ? { blood_pressure: created.value }
+            : { weight_kg: created.numeric_value ?? undefined },
+        );
+        onProfileUpdated?.(updated);
+      }
+
+      toast(`${metricLabel(metricType)} saved to your history.`, "success");
+    } catch (err: unknown) {
+      toast(
+        err instanceof Error ? err.message : "Failed to save health metric.",
+        "error",
+      );
+    } finally {
+      setMetricSubmitting(false);
+    }
+  }, [metricRecordedAt, metricType, metricValue, onProfileUpdated, profile, toast]);
+
+  const selectedMetricEntries = metrics.filter(
+    (entry) => entry.metric_type === metricType,
+  );
+  const selectedMetricMeta = METRIC_OPTIONS.find((opt) => opt.type === metricType);
 
   // ── Empty state ──────────────────────────────────────────────────────────────
   if (!profile && !editing) {
@@ -1303,6 +1495,132 @@ export function ProfileView({
                     )}
                 </div>
               )}
+            </CardContent>
+          </Card>
+
+          {/* Health Metrics — selectable input + history + trend chart */}
+          <Card className="py-0">
+            <CardHeader className="px-5 pt-4 pb-0">
+              <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                <div className="flex h-6 w-6 items-center justify-center rounded-md bg-muted">
+                  <TrendingUp className="h-3.5 w-3.5" />
+                </div>
+                Health Metrics
+              </CardTitle>
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Add one metric at a time and review day-wise history.
+              </p>
+            </CardHeader>
+            <CardContent className="px-5 pb-4 pt-3 space-y-4">
+              <div className="space-y-3 rounded-lg border border-border bg-muted/20 p-3">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <div>
+                    <FieldLabel>Metric</FieldLabel>
+                    <InlineSelect
+                      value={metricType}
+                      onChange={(e) =>
+                        setMetricType(e.target.value as PatientMetricType)
+                      }
+                    >
+                      {METRIC_OPTIONS.map((option) => (
+                        <option key={option.type} value={option.type}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </InlineSelect>
+                  </div>
+                  <div>
+                    <FieldLabel>Recorded At</FieldLabel>
+                    <InlineInput
+                      type="datetime-local"
+                      value={metricRecordedAt}
+                      onChange={(e) => setMetricRecordedAt(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto]">
+                  <div>
+                    <FieldLabel>
+                      Value ({selectedMetricMeta?.unit ?? ""})
+                    </FieldLabel>
+                    <InlineInput
+                      value={metricValue}
+                      onChange={(e) => setMetricValue(e.target.value)}
+                      placeholder={selectedMetricMeta?.placeholder ?? "Enter value"}
+                    />
+                  </div>
+                  <div className="sm:self-end">
+                    <Button
+                      type="button"
+                      onClick={handleAddMetric}
+                      disabled={metricSubmitting || !profile}
+                      className="w-full gap-2 sm:w-auto"
+                    >
+                      {metricSubmitting ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Saving…
+                        </>
+                      ) : (
+                        <>
+                          <Plus className="h-4 w-4" />
+                          Add Input
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-xs font-semibold text-foreground">
+                  {metricLabel(metricType)} Trend
+                </p>
+                <MetricTrendChart
+                  entries={selectedMetricEntries}
+                  unit={selectedMetricMeta?.unit ?? ""}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-xs font-semibold text-foreground">
+                  Recent History
+                </p>
+                <div className="max-h-52 overflow-y-auto rounded-lg border border-border">
+                  {metricsLoading ? (
+                    <div className="flex items-center justify-center gap-2 px-4 py-8 text-xs text-muted-foreground">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      Loading metric history…
+                    </div>
+                  ) : selectedMetricEntries.length === 0 ? (
+                    <p className="px-4 py-8 text-center text-xs text-muted-foreground">
+                      No {metricLabel(metricType).toLowerCase()} history yet.
+                    </p>
+                  ) : (
+                    <div className="divide-y divide-border/70">
+                      {selectedMetricEntries.slice(0, 20).map((entry) => (
+                        <div
+                          key={entry.id}
+                          className="flex items-center justify-between gap-3 px-4 py-2.5 text-xs"
+                        >
+                          <span className="font-medium text-foreground tabular-nums">
+                            {entry.value} {entry.unit}
+                          </span>
+                          <span className="text-muted-foreground">
+                            {new Date(entry.recorded_at).toLocaleString("en-US", {
+                              month: "short",
+                              day: "numeric",
+                              year: "numeric",
+                              hour: "numeric",
+                              minute: "2-digit",
+                            })}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
             </CardContent>
           </Card>
 

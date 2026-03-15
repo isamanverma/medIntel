@@ -136,3 +136,158 @@ class TestAuthorization:
     async def test_unauthenticated_cannot_access_profiles(self, client: AsyncClient):
         resp = await client.get("/api/profiles/patient/me")
         assert resp.status_code == 401
+
+
+class TestPatientMetricHistory:
+    """Patient metric logging and history retrieval tests."""
+
+    async def test_patient_can_add_and_list_metric_history(
+        self,
+        client: AsyncClient,
+        make_user,
+    ):
+        user = await make_user(role=UserRole.PATIENT)
+        await client.post(
+            "/api/profiles/patient",
+            json={
+                "first_name": "Metric",
+                "last_name": "User",
+                "date_of_birth": "1994-01-01",
+                "blood_group": "O+",
+                "emergency_contact": "+1000000000",
+            },
+            headers=auth_header(user),
+        )
+
+        create_resp = await client.post(
+            "/api/profiles/patient/metrics",
+            json={
+                "metric_type": "blood_pressure",
+                "value": "122/78",
+                "recorded_at": "2026-03-15T06:30:00Z",
+            },
+            headers=auth_header(user),
+        )
+        assert create_resp.status_code == 201
+        created = create_resp.json()
+        assert created["metric_type"] == "blood_pressure"
+        assert created["value"] == "122/78"
+        assert created["unit"] == "mmHg"
+        assert created["numeric_value"] == 122
+
+        list_resp = await client.get(
+            "/api/profiles/patient/metrics?metric_type=blood_pressure",
+            headers=auth_header(user),
+        )
+        assert list_resp.status_code == 200
+        items = list_resp.json()
+        assert len(items) == 1
+        assert items[0]["value"] == "122/78"
+        assert items[0]["metric_type"] == "blood_pressure"
+
+    async def test_patient_metric_list_is_newest_first(
+        self,
+        client: AsyncClient,
+        make_user,
+    ):
+        user = await make_user(role=UserRole.PATIENT)
+        await client.post(
+            "/api/profiles/patient",
+            json={
+                "first_name": "Sort",
+                "last_name": "Check",
+                "date_of_birth": "1994-01-01",
+                "blood_group": "A+",
+                "emergency_contact": "+1000000001",
+            },
+            headers=auth_header(user),
+        )
+
+        await client.post(
+            "/api/profiles/patient/metrics",
+            json={
+                "metric_type": "blood_sugar",
+                "value": "130",
+                "recorded_at": "2026-03-14T10:00:00Z",
+            },
+            headers=auth_header(user),
+        )
+        await client.post(
+            "/api/profiles/patient/metrics",
+            json={
+                "metric_type": "blood_sugar",
+                "value": "118",
+                "recorded_at": "2026-03-15T10:00:00Z",
+            },
+            headers=auth_header(user),
+        )
+
+        list_resp = await client.get(
+            "/api/profiles/patient/metrics?metric_type=blood_sugar",
+            headers=auth_header(user),
+        )
+        assert list_resp.status_code == 200
+        items = list_resp.json()
+        assert len(items) == 2
+        assert items[0]["value"] == "118"
+        assert items[1]["value"] == "130"
+
+    async def test_metric_validation_rejects_invalid_bp_format(
+        self,
+        client: AsyncClient,
+        make_user,
+    ):
+        user = await make_user(role=UserRole.PATIENT)
+        await client.post(
+            "/api/profiles/patient",
+            json={
+                "first_name": "Valid",
+                "last_name": "Rules",
+                "date_of_birth": "1995-01-01",
+                "blood_group": "B+",
+                "emergency_contact": "+1000000002",
+            },
+            headers=auth_header(user),
+        )
+
+        resp = await client.post(
+            "/api/profiles/patient/metrics",
+            json={
+                "metric_type": "blood_pressure",
+                "value": "120-80",
+            },
+            headers=auth_header(user),
+        )
+        assert resp.status_code == 422
+
+    async def test_metric_requires_patient_profile(
+        self,
+        client: AsyncClient,
+        make_user,
+    ):
+        user = await make_user(role=UserRole.PATIENT)
+        resp = await client.post(
+            "/api/profiles/patient/metrics",
+            json={
+                "metric_type": "weight",
+                "value": "72",
+            },
+            headers=auth_header(user),
+        )
+        assert resp.status_code == 404
+
+    async def test_doctor_cannot_add_patient_metrics(
+        self,
+        client: AsyncClient,
+        make_user,
+    ):
+        doctor = await make_user(role=UserRole.DOCTOR)
+        resp = await client.post(
+            "/api/profiles/patient/metrics",
+            json={
+                "metric_type": "weight",
+                "value": "72",
+            },
+            headers=auth_header(doctor),
+        )
+        assert resp.status_code == 403
