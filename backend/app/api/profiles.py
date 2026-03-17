@@ -8,8 +8,9 @@ Profiles are created after signup to capture role-specific data
 from __future__ import annotations
 
 import uuid
-from datetime import date
-from typing import Optional
+import re
+from datetime import date, datetime, timezone
+from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field as PydanticField
@@ -20,6 +21,7 @@ from app.db.engine import get_session
 from app.deps import require_patient, require_doctor, get_current_user
 from app.models.user import User
 from app.models.profiles import PatientProfile, DoctorProfile
+from app.models.patient_metric import PatientMetricEntry
 from app.services.gemini_service import get_gemini_service
 
 router = APIRouter(prefix="/profiles", tags=["profiles"])
@@ -118,6 +120,37 @@ class PatientProfileResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+MetricType = Literal[
+    "blood_pressure",
+    "blood_sugar",
+    "weight",
+    "heart_rate",
+    "temperature",
+    "oxygen_saturation",
+]
+
+
+class PatientMetricEntryCreate(BaseModel):
+    metric_type: MetricType
+    value: str = PydanticField(..., min_length=1, max_length=64)
+    recorded_at: Optional[datetime] = None
+    notes: Optional[str] = PydanticField(None, max_length=500)
+
+
+class PatientMetricEntryResponse(BaseModel):
+    id: uuid.UUID
+    patient_id: uuid.UUID
+    metric_type: MetricType
+    value: str
+    unit: str
+    numeric_value: Optional[float] = None
+    notes: Optional[str] = None
+    recorded_at: datetime
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
 class GenerateTagsRequest(BaseModel):
     description: str = PydanticField(..., min_length=10, max_length=2000)
 
@@ -150,6 +183,53 @@ class DoctorProfileResponse(BaseModel):
     license_number: str
 
     model_config = {"from_attributes": True}
+
+
+def _normalize_metric_value(metric_type: MetricType, value: str) -> tuple[str, Optional[float]]:
+    raw = value.strip()
+    if metric_type == "blood_pressure":
+        if not re.fullmatch(r"\d{2,3}/\d{2,3}", raw):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Blood pressure must be in systolic/diastolic format (e.g. 120/80).",
+            )
+        systolic = float(raw.split("/", maxsplit=1)[0])
+        return "mmHg", systolic
+
+    try:
+        numeric_value = float(raw)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"{metric_type} must be a numeric value.",
+        ) from exc
+
+    if numeric_value <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"{metric_type} must be greater than zero.",
+        )
+
+    if metric_type == "blood_sugar":
+        return "mg/dL", numeric_value
+    if metric_type == "weight":
+        return "kg", numeric_value
+    if metric_type == "heart_rate":
+        return "bpm", numeric_value
+    if metric_type == "temperature":
+        return "C", numeric_value
+    if metric_type == "oxygen_saturation":
+        if numeric_value > 100:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="oxygen_saturation cannot be greater than 100.",
+            )
+        return "%", numeric_value
+
+    raise HTTPException(
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+        detail=f"Unsupported metric type: {metric_type}",
+    )
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -241,7 +321,7 @@ async def generate_condition_tags(
     except ValueError as exc:
         # Empty / too-short description
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=str(exc),
         )
     except RuntimeError as exc:
@@ -297,6 +377,76 @@ async def update_patient_profile(
     await session.commit()
     await session.refresh(profile)
     return PatientProfileResponse.model_validate(profile)
+
+
+@router.post(
+    "/patient/metrics",
+    response_model=PatientMetricEntryResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_patient_metric_entry(
+    body: PatientMetricEntryCreate,
+    user: User = Depends(require_patient),
+    session: AsyncSession = Depends(get_session),
+) -> PatientMetricEntryResponse:
+    profile_result = await session.execute(
+        select(PatientProfile).where(PatientProfile.user_id == user.id)
+    )
+    profile = profile_result.scalar_one_or_none()
+    if not profile:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Patient profile not found. Please complete your profile first.",
+        )
+
+    unit, numeric_value = _normalize_metric_value(body.metric_type, body.value)
+
+    metric = PatientMetricEntry(
+        patient_id=profile.id,
+        metric_type=body.metric_type,
+        value=body.value.strip(),
+        unit=unit,
+        numeric_value=numeric_value,
+        notes=body.notes,
+        recorded_at=body.recorded_at or datetime.now(timezone.utc),
+    )
+    session.add(metric)
+    await session.commit()
+    await session.refresh(metric)
+    return PatientMetricEntryResponse.model_validate(metric)
+
+
+@router.get("/patient/metrics", response_model=list[PatientMetricEntryResponse])
+async def list_patient_metric_entries(
+    metric_type: Optional[MetricType] = None,
+    limit: int = 90,
+    user: User = Depends(require_patient),
+    session: AsyncSession = Depends(get_session),
+) -> list[PatientMetricEntryResponse]:
+    if limit < 1 or limit > 365:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="limit must be between 1 and 365.",
+        )
+
+    profile_result = await session.execute(
+        select(PatientProfile).where(PatientProfile.user_id == user.id)
+    )
+    profile = profile_result.scalar_one_or_none()
+    if not profile:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Patient profile not found. Please complete your profile first.",
+        )
+
+    query = select(PatientMetricEntry).where(PatientMetricEntry.patient_id == profile.id)
+    if metric_type is not None:
+        query = query.where(PatientMetricEntry.metric_type == metric_type)
+    query = query.order_by(PatientMetricEntry.recorded_at.desc()).limit(limit)
+
+    result = await session.execute(query)
+    entries = result.scalars().all()
+    return [PatientMetricEntryResponse.model_validate(entry) for entry in entries]
 
 
 # ──────────────────────────────────────────────────────────────────

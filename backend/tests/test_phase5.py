@@ -6,8 +6,11 @@ admin assignments, and extended patient profile fields.
 import pytest
 from httpx import AsyncClient, ASGITransport
 
+import app.db.engine as engine_module
 from app.main import app
 from app.models.enums import UserRole
+from app.models.user import UserCreate
+from app.services.auth_service import create_user
 import uuid as _uuid
 
 
@@ -20,6 +23,24 @@ _RUN = _uuid.uuid4().hex[:6]
 # ── Helpers ───────────────────────────────────────────────────────
 
 async def _signup(client: AsyncClient, email: str, name: str, role: str) -> dict:
+    if role == "ADMIN":
+        async with engine_module.async_session_factory() as session:
+            token = await create_user(
+                session,
+                data=UserCreate(
+                    email=email,
+                    password="Test1234!",
+                    name=name,
+                    role=UserRole.ADMIN,
+                ),
+            )
+        return {
+            "id": str(token.user.id),
+            "email": token.user.email,
+            "name": token.user.name,
+            "role": token.user.role.value,
+        }
+
     resp = await client.post("/api/auth/signup", json={
         "email": email, "password": "Test1234!", "name": name, "role": role,
     })

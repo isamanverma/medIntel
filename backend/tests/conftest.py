@@ -21,6 +21,8 @@ from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, Asyn
 
 from app.core.config import settings
 from app.models.enums import UserRole
+from app.models.user import UserCreate
+from app.services.auth_service import create_user
 
 
 # ── Patch engine to use NullPool BEFORE importing app ─────────────
@@ -94,14 +96,37 @@ async def make_user(client: AsyncClient):
         _email = email or f"testuser_{uuid.uuid4().hex[:8]}@test.com"
         _name = name or f"Test {role.value.title()}"
 
-        resp = await client.post("/api/auth/signup", json={
-            "email": _email,
-            "password": password,
-            "name": _name,
-            "role": role.value,
-        })
-        assert resp.status_code == 201, f"Signup failed: {resp.text}"
-        data = resp.json()
+        if role == UserRole.ADMIN:
+            # Admin signup is intentionally blocked at the public route.
+            # Tests still need privileged users, so create them via service layer.
+            async with engine_module.async_session_factory() as session:
+                token = await create_user(
+                    session,
+                    data=UserCreate(
+                        email=_email,
+                        password=password,
+                        name=_name,
+                        role=role,
+                    ),
+                )
+            data = {
+                "access_token": token.access_token,
+                "user": {
+                    "id": str(token.user.id),
+                    "email": token.user.email,
+                    "name": token.user.name,
+                    "role": token.user.role.value,
+                },
+            }
+        else:
+            resp = await client.post("/api/auth/signup", json={
+                "email": _email,
+                "password": password,
+                "name": _name,
+                "role": role.value,
+            })
+            assert resp.status_code == 201, f"Signup failed: {resp.text}"
+            data = resp.json()
 
         return _TestUser(
             id=uuid.UUID(data["user"]["id"]),

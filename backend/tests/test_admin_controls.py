@@ -9,7 +9,11 @@ import uuid
 import pytest
 from httpx import AsyncClient, ASGITransport
 
+import app.db.engine as engine_module
 from app.main import app
+from app.models.enums import UserRole
+from app.models.user import UserCreate
+from app.services.auth_service import create_user
 
 
 def uid() -> str:
@@ -25,15 +29,31 @@ def client():
 async def create_and_login(client: AsyncClient, role: str, suffix: str = "") -> str:
     """Sign up a user and return the Bearer token."""
     u = uid() + suffix
-    await client.post("/api/auth/signup", json={
+    email = f"ctrl_{role.lower()}_{u}@test.com"
+    payload = {
         "name": f"Test {role}",
-        "email": f"ctrl_{role.lower()}_{u}@test.com",
+        "email": email,
         "password": "Password123",
         "role": role,
-    })
+    }
+
+    if role == "ADMIN":
+        async with engine_module.async_session_factory() as session:
+            token = await create_user(
+                session,
+                data=UserCreate(
+                    name=payload["name"],
+                    email=payload["email"],
+                    password=payload["password"],
+                    role=UserRole.ADMIN,
+                ),
+            )
+        return token.access_token, str(token.user.id)
+
+    await client.post("/api/auth/signup", json=payload)
     res = await client.post("/api/auth/login", json={
-        "email": f"ctrl_{role.lower()}_{u}@test.com",
-        "password": "Password123",
+        "email": email,
+        "password": payload["password"],
     })
     assert res.status_code == 200, res.text
     return res.json()["access_token"], res.json()["user"]["id"]

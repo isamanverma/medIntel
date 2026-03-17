@@ -6,10 +6,15 @@ and a patient should NOT be able to log in via the doctor portal, etc.
 """
 
 import uuid
+from types import SimpleNamespace
 import pytest
 from httpx import AsyncClient, ASGITransport
 
+import app.db.engine as engine_module
 from app.main import app
+from app.models.enums import UserRole
+from app.models.user import UserCreate
+from app.services.auth_service import create_user
 
 
 @pytest.fixture
@@ -28,9 +33,23 @@ class TestRoleValidatedLogin:
     """Login must reject credentials when the user's role doesn't match."""
 
     async def _signup(self, client: AsyncClient, role: str, uid: str):
+        email = f"role_{role.lower()}_{uid}@example.com"
+        if role == "ADMIN":
+            async with engine_module.async_session_factory() as session:
+                await create_user(
+                    session,
+                    data=UserCreate(
+                        name=f"Test {role.title()}",
+                        email=email,
+                        password="Password123",
+                        role=UserRole.ADMIN,
+                    ),
+                )
+            return SimpleNamespace(status_code=201)
+
         return await client.post("/api/auth/signup", json={
             "name": f"Test {role.title()}",
-            "email": f"role_{role.lower()}_{uid}@example.com",
+            "email": email,
             "password": "Password123",
             "role": role,
         })
