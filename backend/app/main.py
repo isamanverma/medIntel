@@ -10,6 +10,8 @@ Responsibilities:
 
 from __future__ import annotations
 
+import time
+from datetime import datetime, UTC
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
@@ -32,6 +34,13 @@ from app.api.referrals import router as referrals_router
 from app.api.care_teams import router as care_teams_router
 from app.api.chat import router as chat_router
 from app.api.video import router as video_router
+
+
+# ──────────────────────────────────────────────────────────────────
+#  Global State
+# ──────────────────────────────────────────────────────────────────
+
+SERVER_START_TIME = time.time()
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -127,6 +136,20 @@ app.include_router(chat_router)   # prefix handles /api/chat internally
 #  Health check
 # ──────────────────────────────────────────────────────────────────
 
+@app.get("/", tags=["infra"])
+async def root() -> dict[str, str]:
+    """Root endpoint for quick connectivity test."""
+    return {"message": "API running"}
+
+
+@app.get("/health", tags=["infra"])
 @app.get("/api/health", tags=["infra"])
-async def health_check() -> dict[str, str]:
-    return {"status": "healthy", "service": "medintel-api"}
+async def health_check() -> dict[str, str | float]:
+    """Lightweight health check for monitoring and cold-start detection."""
+    uptime = time.time() - SERVER_START_TIME
+    return {
+        "status": "healthy",
+        "timestamp": datetime.now(UTC).isoformat(),
+        "uptime_seconds": round(uptime, 2),
+        "service": "medintel-api"
+    }
